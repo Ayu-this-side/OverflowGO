@@ -1,0 +1,27 @@
+{
+  "geofenceRadiusKm": 3,
+  "geofenceExpandedRadiusKm": 5,
+  "offerTimeoutSeconds": 30,
+  "taskSlaMinutes": 45,
+  "duplicateMergeRadiusMeters": 25,
+  "driverProximityNoRewardMeters": 150,
+  "driverHeartbeatSeconds": 20,
+  "driverStaleAfterSeconds": 60,
+  "afterPhotoMaxDistanceMeters": 50,
+  "aiOverflowThreshold": 0.65,
+  "aiGarbageThreshold": 0.65,
+  "aiVerifyMaxOverflowConf": 0.35,
+  "aiVerifyMaxGarbageConf": 0.35,
+  "rewardPerExtraJob": 20,
+  "rewardDailyCapPerDriver": 300,
+  "photoRetentionDaysAfterClose": 7,
+  "skipOfferIfRouteDueWithinMinutes": 30,
+  "timezone": "Asia/Kolkata",
+  "acceptanceScorePenalty": 0.1,
+  "dumpYard": {
+    "name": "Municipal Dump Yard",
+    "lat": 18.5204,
+    "lng": 73.8567
+  },
+  "corsOrigins": ["http://localhost:5173"]
+}

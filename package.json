@@ -1,0 +1,33 @@
+{
+  "name": "overflowgo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Demand-driven overflow reporting and dispatch layer for municipal garbage collection.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev -w @overflowgo/api",
+    "dev:web": "npm run dev -w @overflowgo/web",
+    "build": "npm run build -w @overflowgo/api && npm run build -w @overflowgo/web",
+    "typecheck": "npm run typecheck -w @overflowgo/shared && npm run typecheck -w @overflowgo/api && npm run typecheck -w @overflowgo/web",
+    "test": "npm run test -w @overflowgo/api && npm run test -w @overflowgo/web",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f db",
+    "ai:dev": "python -m uvicorn app:app --app-dir apps/ai-service --reload --host 127.0.0.1 --port 8000"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^5.1.0"
+  }
+}
