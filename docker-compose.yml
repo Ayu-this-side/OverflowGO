@@ -1,0 +1,36 @@
+name: overflowgo
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: overflowgo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: overflowgo
+      POSTGRES_PASSWORD: overflowgo_dev
+      POSTGRES_DB: overflowgo
+    ports:
+      - "5432:5432"
+    volumes:
+      - overflowgo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U overflowgo -d overflowgo"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  ai:
+    profiles: ["ai"]
+    build:
+      context: ./apps/ai-service
+    container_name: overflowgo-ai
+    restart: unless-stopped
+    environment:
+      MODEL_PATH: /models/wastemap_bin_detector_v1.pt
+    ports:
+      - "8000:8000"
+    volumes:
+      - "./Model/detection model/wastemap_bin_detector_v1.pt:/models/wastemap_bin_detector_v1.pt:ro"
+
+volumes:
+  overflowgo_pgdata:
