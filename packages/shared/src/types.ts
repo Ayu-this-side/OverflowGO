@@ -14,7 +14,7 @@ export type OfferResponse =
   | 'expired'
   | 'taken_by_other';
 
-export type AiTrigger = 'overflow' | 'garbage' | 'both';
+export type AiTrigger = 'overflow' | 'garbage' | 'garbage_bin' | 'both';
 
 export type TicketFlagReason = 'driver_device' | 'driver_nearby';
 
@@ -35,6 +35,7 @@ export interface AppConfig {
   afterPhotoMaxDistanceMeters: number;
   aiOverflowThreshold: number;
   aiGarbageThreshold: number;
+  aiBinThreshold: number;
   aiVerifyMaxOverflowConf: number;
   aiVerifyMaxGarbageConf: number;
   rewardPerExtraJob: number;

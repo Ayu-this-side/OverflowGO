@@ -304,8 +304,9 @@ export function createReportService({
 
       const overflowHit = overflowConf >= config.aiOverflowThreshold;
       const garbageHit = garbageConf >= config.aiGarbageThreshold;
+      const binHit = binConf >= config.aiBinThreshold;
 
-      if (!overflowHit && !garbageHit) {
+      if (!overflowHit && !garbageHit && !binHit) {
         const nothingVisible =
           overflowConf === 0 && garbageConf === 0 && binConf === 0;
         const reason = nothingVisible ? REJECT_NOTHING_VISIBLE : REJECT_NO_GARBAGE;
@@ -342,7 +343,9 @@ export function createReportService({
           ? 'both'
           : overflowHit
             ? 'overflow'
-            : 'garbage';
+            : garbageHit
+              ? 'garbage'
+              : 'garbage_bin';
 
       const duplicate = await findDuplicatePhoto(prepared.hash);
       if (duplicate) {

@@ -10,6 +10,7 @@
   "afterPhotoMaxDistanceMeters": 50,
   "aiOverflowThreshold": 0.65,
   "aiGarbageThreshold": 0.65,
+  "aiBinThreshold": 0.65,
   "aiVerifyMaxOverflowConf": 0.35,
   "aiVerifyMaxGarbageConf": 0.35,
   "rewardPerExtraJob": 20,

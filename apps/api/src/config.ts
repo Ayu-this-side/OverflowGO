@@ -15,6 +15,7 @@ const AppConfigSchema = z.object({
   afterPhotoMaxDistanceMeters: z.number().positive(),
   aiOverflowThreshold: z.number().min(0).max(1),
   aiGarbageThreshold: z.number().min(0).max(1),
+  aiBinThreshold: z.number().min(0).max(1),
   aiVerifyMaxOverflowConf: z.number().min(0).max(1),
   aiVerifyMaxGarbageConf: z.number().min(0).max(1),
   rewardPerExtraJob: z.number().nonnegative(),

@@ -223,9 +223,30 @@ describe('POST /api/reports', () => {
     });
   });
 
-  it('rejects a clean bin photo with the retake message', async () => {
+  it('accepts a bin-only photo and records the garbage_bin trigger', async () => {
     await seedLocality();
     const app = appWith(fakeAi({ bin_conf: 0.9 }));
+
+    const response = await postReport(app, { photo: await makePhoto(5) });
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe('accepted');
+
+    const report = await query(
+      'SELECT result, ai_trigger FROM reports WHERE id = $1',
+      [response.body.reportId],
+    );
+    expect(report.rows[0]).toMatchObject({
+      result: 'accepted',
+      ai_trigger: 'garbage_bin',
+    });
+  });
+
+  it('rejects when every detection is below its configured threshold', async () => {
+    await seedLocality();
+    const app = appWith(
+      fakeAi({ overflow_conf: 0.2, garbage_conf: 0.2, bin_conf: 0.2 }),
+    );
 
     const response = await postReport(app, { photo: await makePhoto(5) });
 
