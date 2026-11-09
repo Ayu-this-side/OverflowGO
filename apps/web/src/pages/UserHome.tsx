@@ -189,13 +189,6 @@ function ResultPanel({
         >
           {t('retake')}
         </button>
-        <button
-          type="button"
-          onClick={onAnother}
-          className="mt-3 w-full rounded-2xl px-5 py-3 text-base font-semibold text-gray-600"
-        >
-          {t('reportAnother')}
-        </button>
       </section>
     );
   }
