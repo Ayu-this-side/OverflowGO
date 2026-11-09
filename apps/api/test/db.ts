@@ -1,3 +1,4 @@
+import { Client } from 'pg';
 import { closePool, query } from '../src/db/pool';
 import { runMigrations } from '../src/db/migrate';
 
@@ -34,7 +35,31 @@ export async function resetDatabase(): Promise<void> {
   await query(`TRUNCATE ${TABLES_TO_TRUNCATE.join(', ')} CASCADE`);
 }
 
+async function ensureTestDatabase(): Promise<void> {
+  const url = new URL(testDatabaseUrl);
+  const databaseName = decodeURIComponent(url.pathname.replace(/^\//, ''));
+  if (!/^[A-Za-z0-9_]+$/.test(databaseName)) {
+    throw new Error(`Unsafe test database name: ${databaseName}`);
+  }
+
+  url.pathname = '/postgres';
+  const client = new Client({ connectionString: url.toString() });
+  await client.connect();
+  try {
+    const existing = await client.query(
+      'SELECT 1 FROM pg_database WHERE datname = $1',
+      [databaseName],
+    );
+    if (existing.rowCount === 0) {
+      await client.query(`CREATE DATABASE "${databaseName}"`);
+    }
+  } finally {
+    await client.end();
+  }
+}
+
 export async function setupTestDatabase(): Promise<void> {
+  await ensureTestDatabase();
   await runMigrations(testDatabaseUrl);
   await resetDatabase();
 }

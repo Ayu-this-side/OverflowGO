@@ -15,7 +15,7 @@ Full product and design docs live in [`OverflowGo_MD_Docs/`](./OverflowGo_MD_Doc
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Monorepo, Docker, config, AI service, calibration | complete |
-| 1 | Core reporting, tickets, user PWA | planned |
+| 1 | Core reporting, tickets, user PWA | complete |
 | 2 | Driver login, routes, completion flow | planned |
 | 3 | Live dispatch, SLA, rewards, wallet | planned |
 | 4 | Hardening: retention, hashes, PWA, i18n | planned |
@@ -61,6 +61,8 @@ cp .env.example .env
 
 # 3. Database (Postgres 16 + PostGIS 3.4)
 npm run db:up
+npm run db:migrate
+npm run seed:localities
 
 # 4. AI service (native, CPU)
 python -m venv .venv
@@ -77,11 +79,49 @@ npm run dev
 - API health: http://localhost:4000/api/health
 - AI health: http://localhost:8000/health
 
+The database is published on host port **5433** because a local PostgreSQL
+install usually owns 5432. `.env.example` already uses 5433.
+
+`npm run seed:localities` loads the fake sample areas in
+`scripts/data/localities.sample.csv`. Replace that file with the real city
+areas when they are supplied, then re-run the command; names are upserted.
+
 The AI service can also run in Docker:
 
 ```bash
 docker compose --profile ai up -d ai
 ```
+
+## Citizen reporting (Phase 1)
+
+The `/` portal is now the real citizen flow:
+
+1. Tap **Report overflowing bin**; the app asks for location and camera access.
+2. Take a live photo (no gallery picker), preview it, retake if needed, and add
+   an optional note.
+3. Right before sending, it gets a fresh high-accuracy GPS fix. Accuracy worse
+   than 100 m asks the user to move and retry.
+4. The photo is compressed to 1280 px JPEG on the phone, then uploaded with a
+   `deviceId` and a `clientReportId`.
+5. The API re-compresses, hashes the photo, calls the AI service and either
+   accepts, merges into a nearby open ticket (25 m) or rejects with a retake
+   message.
+6. If the network or AI service is unavailable, the report is saved in
+   IndexedDB and retried automatically with the same idempotency key.
+
+The result screen polls ticket status (`open` / `offered` / `assigned` /
+`completed`). English and Hindi are both available from the header.
+
+API endpoints added in this phase:
+
+- `POST /api/reports` — multipart `photo`, `lat`, `lng`, `deviceId`, optional
+  `note` and `clientReportId`.
+- `GET /api/reports/:id` — report result plus current ticket status.
+- `GET /api/photos/:filename` — stored report photo.
+
+Reward safeguards are recorded at ticket creation: a report from a registered
+driver phone sets `reward_eligible = false`, and online drivers within 150 m are
+stored in `ticket_reward_exclusions` (rewards themselves arrive in Phase 3).
 
 ## Calibration
 
@@ -121,6 +161,10 @@ cd apps/ai-service
 pip install -r requirements-dev.txt
 RUN_MODEL_TESTS=1 pytest
 ```
+
+`npm test` needs the database container running. The API test harness creates
+and migrates `overflowgo_test` automatically and refuses to run against a
+non-test database.
 
 ## Configuration
 
