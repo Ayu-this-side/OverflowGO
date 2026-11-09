@@ -1,0 +1,11 @@
+# Fake sample localities for local development.
+# Replace this file with the real city areas when they are supplied.
+name,lat,lng
+Area A,18.5160,73.8410
+Area B,18.5204,73.8567
+Area C,18.5285,73.8740
+Area D,18.5089,73.8600
+Area E,18.5350,73.8380
+Area F,18.5000,73.8800
+Area G,18.5420,73.8650
+Area H,18.4950,73.8450

@@ -1,11 +1,30 @@
 # Operational scripts
 
-This folder will hold the admin-without-a-portal tooling described in
-`OverflowGo_MD_Docs/03_ARCHITECTURE.md`:
+This folder holds the admin-without-a-portal tooling described in
+`OverflowGo_MD_Docs/03_ARCHITECTURE.md`.
 
-- `seed-localities` — load localities (name + center lat/lng) from CSV.
-- `seed-drivers` — create drivers and their ordered regular routes.
-- `export-payouts` — CSV of verified rewards for a date range.
+## Seed localities
 
-Planned for Phase 2 (seeds) and Phase 3 (payouts). AI-service helper scripts
-live in `apps/ai-service/scripts/`.
+```bash
+npm run db:migrate
+npm run seed:localities
+# or with a real city file
+npm run seed:localities -- --file scripts/data/locality-areas.csv
+# preview without writing
+npm run seed:localities -- --dry-run
+```
+
+CSV format:
+
+```csv
+# name,lat,lng
+Area A,18.5160,73.8410
+```
+
+Re-running updates existing names in place, so the same script can load the
+real city areas later. The committed sample file uses fake coordinates.
+
+## Planned
+
+- `seed-drivers` — create drivers and their ordered regular routes (Phase 2).
+- `export-payouts` — CSV of verified rewards for a date range (Phase 3).
