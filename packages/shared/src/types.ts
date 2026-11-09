@@ -107,6 +107,7 @@ export interface Wallet {
 
 export interface ReportAcceptedResponse {
   status: 'accepted' | 'merged';
+  reportId: string;
   ticketId: string;
   merged: boolean;
   message: string;
@@ -114,10 +115,20 @@ export interface ReportAcceptedResponse {
 
 export interface ReportRejectedResponse {
   status: 'rejected';
+  reportId: string;
   reason: string;
 }
 
 export type ReportResponse = ReportAcceptedResponse | ReportRejectedResponse;
+
+export interface ReportStatusResponse {
+  id: string;
+  status: ReportResult;
+  reason: string | null;
+  ticketId: string | null;
+  ticketStatus: TicketStatus | null;
+  createdAt: string;
+}
 
 export interface OfferPayload {
   offerId: string;
