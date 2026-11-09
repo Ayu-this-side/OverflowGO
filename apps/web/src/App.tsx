@@ -1,9 +1,12 @@
 import { Link, Route, Routes } from 'react-router-dom';
+import { useI18n } from './i18n';
 import UserHome from './pages/UserHome';
 import DriverHome from './pages/DriverHome';
 import NotFound from './pages/NotFound';
 
 export default function App() {
+  const { t } = useI18n();
+
   return (
     <div className="min-h-dvh">
       <Routes>
@@ -13,7 +16,7 @@ export default function App() {
       </Routes>
       <footer className="mx-auto w-full max-w-md px-6 pb-8 pt-4 text-center text-xs text-gray-500">
         <Link className="underline underline-offset-2" to="/driver">
-          Driver portal
+          {t('driverPortal')}
         </Link>
       </footer>
     </div>
