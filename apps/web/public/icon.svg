@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OverflowGo">
+  <rect width="512" height="512" rx="112" fill="#15803d"/>
+  <path d="M148 208h216l-22 210a32 32 0 0 1-32 29H202a32 32 0 0 1-32-29l-22-210Z" fill="#f0fdf4"/>
+  <path d="M196 208v-42a60 60 0 0 1 120 0v42" fill="none" stroke="#f0fdf4" stroke-width="26" stroke-linecap="round"/>
+  <path d="M256 108v-26M196 120l-14-20M316 120l14-20" stroke="#fbbf24" stroke-width="18" stroke-linecap="round"/>
+  <path d="M212 272h88M220 318h72M228 364h56" stroke="#15803d" stroke-width="20" stroke-linecap="round"/>
+</svg>
