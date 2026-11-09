@@ -10,7 +10,7 @@ import {
   type SubmitReportInput,
 } from '../lib/api';
 import { createClientReportId, getDeviceId } from '../lib/device';
-import { GeoError, MAX_ACCURACY_METERS, getCurrentPosition } from '../lib/geo';
+import { GeoError, getCurrentPosition } from '../lib/geo';
 import {
   enqueueReport,
   processQueue,
@@ -265,14 +265,11 @@ export default function UserHome() {
 
   const [screen, setScreen] = useState<Screen>('home');
   const [permissionIssue, setPermissionIssue] = useState<PermissionIssue>(null);
-  const [starting, setStarting] = useState(false);
   const [phase, setPhase] = useState<FlowPhase>('idle');
 
   const [capturedPhoto, setCapturedPhoto] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const [accuracy, setAccuracy] = useState<number | null>(null);
-  const [gpsIssue, setGpsIssue] = useState<number | null>(null);
 
   const [result, setResult] = useState<ResultState | null>(null);
   const [ticketStatus, setTicketStatus] = useState<TicketStatus | null>(null);
@@ -356,21 +353,10 @@ export default function UserHome() {
     };
   }, [result]);
 
-  const handleStart = useCallback(async () => {
+  const handleStart = useCallback(() => {
     setPermissionIssue(null);
-    setStarting(true);
-    try {
-      await getCurrentPosition();
-      setScreen('camera');
-    } catch (error) {
-      setPermissionIssue(
-        error instanceof GeoError && error.code === 'denied'
-          ? 'location_denied'
-          : 'location_unavailable',
-      );
-    } finally {
-      setStarting(false);
-    }
+    setResult(null);
+    setScreen('camera');
   }, []);
 
   const handleCameraError = useCallback((reason: CameraError) => {
@@ -391,8 +377,6 @@ export default function UserHome() {
     });
     setCapturedPhoto(photo);
     setNote('');
-    setAccuracy(null);
-    setGpsIssue(null);
     setPermissionIssue(null);
     setScreen('preview');
   }, []);
@@ -403,8 +387,6 @@ export default function UserHome() {
       return null;
     });
     setCapturedPhoto(null);
-    setAccuracy(null);
-    setGpsIssue(null);
     setPermissionIssue(null);
     setScreen('camera');
   }, []);
@@ -415,8 +397,6 @@ export default function UserHome() {
     setCapturedPhoto(null);
     setPreviewUrl(null);
     setNote('');
-    setAccuracy(null);
-    setGpsIssue(null);
     setPermissionIssue(null);
     setScreen('home');
   }, []);
@@ -425,13 +405,11 @@ export default function UserHome() {
     if (!capturedPhoto) return;
 
     setPermissionIssue(null);
-    setGpsIssue(null);
     setPhase('locating');
 
     let position;
     try {
       position = await getCurrentPosition();
-      setAccuracy(Math.round(position.accuracy));
     } catch (error) {
       setPhase('idle');
       setPermissionIssue(
@@ -439,12 +417,6 @@ export default function UserHome() {
           ? 'location_denied'
           : 'location_unavailable',
       );
-      return;
-    }
-
-    if (position.accuracy > MAX_ACCURACY_METERS) {
-      setGpsIssue(Math.round(position.accuracy));
-      setPhase('idle');
       return;
     }
 
@@ -520,7 +492,7 @@ export default function UserHome() {
     if (capturedPhoto) {
       setScreen('preview');
     } else {
-      void handleStart();
+      handleStart();
     }
   }, [capturedPhoto, handleStart]);
 
@@ -574,17 +546,17 @@ export default function UserHome() {
           {permissionIssue && (
             <PermissionNotice
               issue={permissionIssue}
-              onRetry={() => void handleStart()}
+              onRetry={handleStart}
             />
           )}
 
           <button
             type="button"
-            onClick={() => void handleStart()}
-            disabled={starting || permissionIssue !== null}
+            onClick={handleStart}
+            disabled={permissionIssue !== null}
             className="mt-6 w-full rounded-2xl bg-brand-700 px-5 py-5 text-lg font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {starting ? t('startBusy') : t('reportButton')}
+            {t('reportButton')}
           </button>
 
           <p className="mt-4 text-xs leading-relaxed text-gray-500">
@@ -626,19 +598,6 @@ export default function UserHome() {
             />
           </label>
 
-          {accuracy !== null && (
-            <p className="mt-3 text-sm text-gray-600">
-              {t('gpsAccuracy', { meters: accuracy })}
-            </p>
-          )}
-          {gpsIssue !== null && (
-            <p
-              role="alert"
-              className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
-            >
-              {t('gpsWeak', { meters: gpsIssue })}
-            </p>
-          )}
           {permissionIssue && (
             <PermissionNotice
               issue={permissionIssue}

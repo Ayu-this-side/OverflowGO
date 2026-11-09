@@ -16,7 +16,6 @@ const en = {
   intro:
     'Your location and photo will be used to send a cleaner. No sign-in needed.',
   reportButton: 'Report overflowing bin',
-  startBusy: 'Checking permissions...',
   privacyNote:
     'Camera-only report. Photos are deleted after the ticket is closed.',
   driverPortal: 'Driver portal',
@@ -48,9 +47,6 @@ const en = {
   sendReport: 'Send report',
   sending: 'Sending report...',
   locating: 'Getting your location...',
-  gpsAccuracy: 'Location accuracy: ±{meters} m',
-  gpsWeak:
-    'Your location is only accurate to ±{meters} m. Move to an open area and try again.',
   gpsDenied:
     'We need your location to send a cleaner. Allow location access and try again.',
   gpsFailed: "We couldn't get your location. Please try again.",
@@ -91,7 +87,6 @@ const hi: Record<TranslationKey, string> = {
   intro:
     'आपकी लोकेशन और फोटो का उपयोग सफाईकर्मी भेजने के लिए होगा। साइन-इन की ज़रूरत नहीं।',
   reportButton: 'भरा हुआ कूड़ेदान रिपोर्ट करें',
-  startBusy: 'अनुमतियाँ जाँची जा रही हैं...',
   privacyNote:
     'रिपोर्ट केवल कैमरे से। टिकट बंद होने के बाद फोटो हटा दी जाती है।',
   driverPortal: 'ड्राइवर पोर्टल',
@@ -123,9 +118,6 @@ const hi: Record<TranslationKey, string> = {
   sendReport: 'रिपोर्ट भेजें',
   sending: 'रिपोर्ट भेजी जा रही है...',
   locating: 'आपकी लोकेशन पता की जा रही है...',
-  gpsAccuracy: 'लोकेशन सटीकता: ±{meters} मीटर',
-  gpsWeak:
-    'लोकेशन केवल ±{meters} मीटर सटीक है। खुली जगह पर जाकर दोबारा कोशिश करें।',
   gpsDenied:
     'सफाईकर्मी भेजने के लिए लोकेशन ज़रूरी है। लोकेशन की अनुमति दें और दोबारा कोशिश करें।',
   gpsFailed: 'लोकेशन नहीं मिल सकी। कृपया दोबारा कोशिश करें।',

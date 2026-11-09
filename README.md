@@ -96,16 +96,18 @@ docker compose --profile ai up -d ai
 
 The `/` portal is now the real citizen flow:
 
-1. Tap **Report overflowing bin**; the app asks for location and camera access.
+1. Tap **Report overflowing bin**; the camera opens straight away.
 2. Take a live photo (no gallery picker), preview it, retake if needed, and add
    an optional note.
-3. Right before sending, it gets a fresh high-accuracy GPS fix. Accuracy worse
-   than 100 m asks the user to move and retry.
-4. The photo is compressed to 1280 px JPEG on the phone, then uploaded with a
+3. When the report is sent, it automatically gets a location fix. A precise GPS
+   fix is preferred, but Wi-Fi/laptop locations are accepted; only a denied or
+   unavailable location stops the send.
+4. The photo is compressed to 1280 px JPEG in the browser, then uploaded with a
    `deviceId` and a `clientReportId`.
-5. The API re-compresses, hashes the photo, calls the AI service and either
-   accepts, merges into a nearby open ticket (25 m) or rejects with a retake
-   message.
+5. The API re-compresses, hashes the photo, calls the AI service and accepts
+   when an overflowing bin, garbage, or a garbage bin is detected. Otherwise it
+   rejects with a retake message. Reports within 25 m of an open ticket are
+   merged instead of creating a second ticket.
 6. If the network or AI service is unavailable, the report is saved in
    IndexedDB and retried automatically with the same idempotency key.
 

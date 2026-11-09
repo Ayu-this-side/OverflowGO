@@ -1,5 +1,3 @@
-export const MAX_ACCURACY_METERS = 100;
-
 export type GeoErrorCode = 'denied' | 'unavailable' | 'timeout';
 
 export class GeoError extends Error {
@@ -15,11 +13,7 @@ export interface GeoPosition {
   accuracy: number;
 }
 
-/**
- * Ask for a fresh high-accuracy fix right before submitting. The phone clock
- * and cached positions are deliberately not trusted.
- */
-export function getCurrentPosition(): Promise<GeoPosition> {
+function requestPosition(options: PositionOptions): Promise<GeoPosition> {
   return new Promise((resolve, reject) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       reject(new GeoError('unavailable'));
@@ -43,11 +37,31 @@ export function getCurrentPosition(): Promise<GeoPosition> {
           reject(new GeoError('unavailable'));
         }
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 15_000,
-        maximumAge: 0,
-      },
+      options,
     );
   });
+}
+
+/**
+ * Ask for a location right before submitting. Laptops and desktops often only
+ * have Wi-Fi/IP-based positioning, so a precise fix is preferred but any
+ * successful fix is accepted. A denial is still surfaced to the user.
+ */
+export async function getCurrentPosition(): Promise<GeoPosition> {
+  try {
+    return await requestPosition({
+      enableHighAccuracy: true,
+      timeout: 10_000,
+      maximumAge: 0,
+    });
+  } catch (error) {
+    if (error instanceof GeoError && error.code === 'denied') {
+      throw error;
+    }
+    return requestPosition({
+      enableHighAccuracy: false,
+      timeout: 10_000,
+      maximumAge: 60_000,
+    });
+  }
 }

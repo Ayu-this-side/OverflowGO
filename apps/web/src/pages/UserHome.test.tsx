@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import UserHome from './UserHome';
 import { I18nProvider } from '../i18n';
@@ -12,10 +12,15 @@ function renderHome() {
 }
 
 const originalGeolocation = navigator.geolocation;
+const originalMediaDevices = navigator.mediaDevices;
 
 beforeEach(() => {
   localStorage.clear();
   Object.defineProperty(navigator, 'geolocation', {
+    configurable: true,
+    value: undefined,
+  });
+  Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
     value: undefined,
   });
@@ -25,6 +30,10 @@ afterEach(() => {
   Object.defineProperty(navigator, 'geolocation', {
     configurable: true,
     value: originalGeolocation,
+  });
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: originalMediaDevices,
   });
 });
 
@@ -58,30 +67,13 @@ describe('UserHome', () => {
     expect(document.documentElement.lang).toBe('en');
   });
 
-  it('explains how to enable location when permission is denied', async () => {
-    Object.defineProperty(navigator, 'geolocation', {
-      configurable: true,
-      value: {
-        getCurrentPosition: (
-          _success: PositionCallback,
-          error: PositionErrorCallback,
-        ) => {
-          error({
-            code: 1,
-            PERMISSION_DENIED: 1,
-            POSITION_UNAVAILABLE: 2,
-            TIMEOUT: 3,
-          } as GeolocationPositionError);
-        },
-      },
-    });
-
+  it('explains how to enable the camera when it is unavailable', async () => {
     renderHome();
     fireEvent.click(
       screen.getByRole('button', { name: /report overflowing bin/i }),
     );
 
-    expect(await screen.findByText(/location is needed/i)).toBeInTheDocument();
+    expect(await screen.findByText(/camera is needed/i)).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /report overflowing bin/i }),
     ).toBeDisabled();
