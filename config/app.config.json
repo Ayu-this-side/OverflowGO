@@ -3,7 +3,7 @@
   "geofenceExpandedRadiusKm": 5,
   "offerTimeoutSeconds": 30,
   "taskSlaMinutes": 45,
-  "duplicateMergeRadiusMeters": 25,
+  "duplicateMergeRadiusMeters": 5,
   "driverProximityNoRewardMeters": 150,
   "driverHeartbeatSeconds": 20,
   "driverStaleAfterSeconds": 60,

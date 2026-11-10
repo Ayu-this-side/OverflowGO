@@ -261,8 +261,8 @@ describe('POST /api/reports', () => {
     const first = await postReport(app, { photo: await makePhoto(10) });
     const second = await postReport(app, {
       photo: await makePhoto(11),
-      lat: PHOTO_LAT + 0.0001,
-      lng: PHOTO_LNG + 0.0001,
+      lat: PHOTO_LAT + 0.00002,
+      lng: PHOTO_LNG + 0.00002,
       deviceId: 'other-device',
     });
 
@@ -300,7 +300,7 @@ describe('POST /api/reports', () => {
     const first = await postReport(app, { photo: await makePhoto(12) });
     const second = await postReport(app, {
       photo: await makePhoto(13),
-      lat: PHOTO_LAT + 0.001,
+      lat: PHOTO_LAT + 0.0001,
     });
 
     expect(second.body.status).toBe('accepted');

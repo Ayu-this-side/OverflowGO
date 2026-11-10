@@ -106,7 +106,7 @@ The `/` portal is now the real citizen flow:
    `deviceId` and a `clientReportId`.
 5. The API re-compresses, hashes the photo, calls the AI service and accepts
    when an overflowing bin, garbage, or a garbage bin is detected. Otherwise it
-   rejects with a retake message. Reports within 25 m of an open ticket are
+   rejects with a retake message. Reports within 5 m of an open ticket are
    merged instead of creating a second ticket.
 6. If the network or AI service is unavailable, the report is saved in
    IndexedDB and retried automatically with the same idempotency key.
