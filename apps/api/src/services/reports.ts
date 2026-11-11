@@ -11,6 +11,7 @@ import type {
 import { query, withTransaction } from '../db/pool';
 import { ApiError } from '../errors';
 import type { AiClient } from './ai';
+import { emitRouteChanged } from './route-events';
 import { deleteReportPhoto, preparePhoto, saveReportPhoto } from './storage';
 
 export const REJECT_NO_GARBAGE =
@@ -23,8 +24,6 @@ const MESSAGE_MERGED =
   'Another report for this bin already exists. We added yours to it.';
 const MESSAGE_DUPLICATE_PHOTO =
   'This photo was already submitted recently. It is attached to the existing report.';
-
-const PHOTO_DUPLICATE_WINDOW = "created_at > now() - interval '24 hours'";
 
 interface ExistingReportRow {
   id: string;
@@ -111,15 +110,16 @@ async function findByClientReportId(
 
 async function findDuplicatePhoto(
   photoHash: string,
-): Promise<{ ticket_id: string } | null> {
-  const result = await query<{ ticket_id: string }>(
-    `SELECT ticket_id
-       FROM reports
-      WHERE photo_hash = $1
-        AND result <> 'rejected'
-        AND ticket_id IS NOT NULL
-        AND ${PHOTO_DUPLICATE_WINDOW}
-      ORDER BY created_at DESC
+): Promise<{ ticket_id: string; locality_id: string } | null> {
+  const result = await query<{ ticket_id: string; locality_id: string }>(
+    `SELECT r.ticket_id, t.locality_id
+       FROM reports r
+       JOIN tickets t ON t.id = r.ticket_id
+      WHERE r.photo_hash = $1
+        AND r.result <> 'rejected'
+        AND r.ticket_id IS NOT NULL
+        AND r.created_at > now() - interval '24 hours'
+      ORDER BY r.created_at DESC
       LIMIT 1`,
     [photoHash],
   );
@@ -149,9 +149,9 @@ async function findMergeTarget(
   lat: number,
   lng: number,
   radiusMeters: number,
-): Promise<string | null> {
-  const result = await client.query<{ id: string }>(
-    `SELECT id
+): Promise<{ id: string; locality_id: string } | null> {
+  const result = await client.query<{ id: string; locality_id: string }>(
+    `SELECT id, locality_id
        FROM tickets
       WHERE status IN ('open', 'offered')
         AND ST_DWithin(
@@ -164,7 +164,7 @@ async function findMergeTarget(
       FOR UPDATE`,
     [lng, lat, radiusMeters],
   );
-  return result.rows[0]?.id ?? null;
+  return result.rows[0] ?? null;
 }
 
 async function findDriverForDevice(
@@ -364,6 +364,7 @@ export function createReportService({
             clientReportId: input.clientReportId ?? null,
             photoHash: prepared.hash,
           });
+          emitRouteChanged(duplicate.locality_id);
           return {
             status: 'merged',
             reportId: inserted.id,
@@ -402,20 +403,20 @@ export function createReportService({
             );
           }
 
-          const mergeTicketId = await findMergeTarget(
+          const mergeTarget = await findMergeTarget(
             client,
             input.lat,
             input.lng,
             config.duplicateMergeRadiusMeters,
           );
 
-          if (mergeTicketId) {
+          if (mergeTarget) {
             await client.query(
               'UPDATE tickets SET report_count = report_count + 1 WHERE id = $1',
-              [mergeTicketId],
+              [mergeTarget.id],
             );
             const inserted = await insertReport(client, {
-              ticketId: mergeTicketId,
+              ticketId: mergeTarget.id,
               photoPath,
               note: input.note ?? null,
               lat: input.lat,
@@ -430,7 +431,8 @@ export function createReportService({
             });
             return {
               status: 'merged' as const,
-              ticketId: mergeTicketId,
+              ticketId: mergeTarget.id,
+              localityId: mergeTarget.locality_id,
               reportId: inserted.id,
             };
           }
@@ -482,9 +484,12 @@ export function createReportService({
           return {
             status: 'accepted' as const,
             ticketId,
+            localityId,
             reportId: inserted.id,
           };
         });
+
+        emitRouteChanged(result.localityId);
 
         if (result.status === 'merged') {
           return {

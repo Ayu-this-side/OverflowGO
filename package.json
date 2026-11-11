@@ -24,6 +24,7 @@
     "db:logs": "docker compose logs -f db",
     "db:migrate": "npm run db:migrate -w @overflowgo/api",
     "seed:localities": "tsx scripts/seed-localities.ts",
+    "seed:drivers": "tsx scripts/seed-drivers.ts",
     "ai:dev": "python -m uvicorn app:app --app-dir apps/ai-service --reload --host 127.0.0.1 --port 8000"
   },
   "devDependencies": {

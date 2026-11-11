@@ -17,7 +17,7 @@ const io = new Server(httpServer, {
   },
 });
 
-attachSocket(io);
+attachSocket(io, { config });
 
 httpServer.listen(port, () => {
   console.log(`[api] OverflowGo API listening on http://localhost:${port}`);

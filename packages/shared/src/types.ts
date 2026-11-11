@@ -79,6 +79,17 @@ export interface DriverProfile extends DriverBase {
   acceptanceScore: number;
 }
 
+export interface DriverRouteTicket {
+  ticketId: string;
+  status: TicketStatus;
+  reportCount: number;
+  firstReportedAt: string;
+  lat: number;
+  lng: number;
+  note: string | null;
+  photoUrl: string | null;
+}
+
 export interface DriverRouteStop {
   stopId: string | null;
   localityId: string;
@@ -88,10 +99,30 @@ export interface DriverRouteStop {
   firstReportedAt: string | null;
   reportCount: number;
   current: boolean;
+  lat: number;
+  lng: number;
+  tickets: DriverRouteTicket[];
 }
 
 export interface DriverRoute {
   stops: DriverRouteStop[];
+}
+
+export interface DriverLoginResponse {
+  token: string;
+  driver: DriverProfile;
+  heartbeatSeconds: number;
+}
+
+export interface DriverSessionResponse {
+  driver: DriverProfile;
+  heartbeatSeconds: number;
+}
+
+export interface CompleteTicketResponse {
+  verified: boolean;
+  reason?: string;
+  ticketStatus?: TicketStatus;
 }
 
 export interface WalletItem {

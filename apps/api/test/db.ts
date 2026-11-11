@@ -91,6 +91,9 @@ export async function seedLocality({
 export interface SeedDriverInput {
   name?: string;
   email?: string;
+  passwordHash?: string;
+  phone?: string;
+  vehicleNo?: string;
   online?: boolean;
   vanFull?: boolean;
   lat?: number;
@@ -101,6 +104,9 @@ export interface SeedDriverInput {
 export async function seedDriver({
   name = 'Driver',
   email = `driver-${Math.random().toString(36).slice(2)}@example.com`,
+  passwordHash = 'test-hash',
+  phone = '',
+  vehicleNo = '',
   online = true,
   vanFull = false,
   lat = 18.5204,
@@ -109,16 +115,87 @@ export async function seedDriver({
 }: SeedDriverInput = {}): Promise<string> {
   const result = await query<{ id: string }>(
     `INSERT INTO drivers (
-       name, email, password_hash, is_online, van_full,
+       name, email, password_hash, phone, vehicle_no, is_online, van_full,
        last_location, last_ping_at
      )
      VALUES (
-       $1, $2, 'test-hash', $3, $4,
-       ST_SetSRID(ST_MakePoint($5, $6), 4326)::geography,
-       now() - make_interval(secs => $7)
+       $1, $2, $3, $4, $5, $6, $7,
+       ST_SetSRID(ST_MakePoint($8, $9), 4326)::geography,
+       now() - make_interval(secs => $10)
      )
      RETURNING id`,
-    [name, email, online, vanFull, lng, lat, lastPingSecondsAgo],
+    [
+      name,
+      email,
+      passwordHash,
+      phone,
+      vehicleNo,
+      online,
+      vanFull,
+      lng,
+      lat,
+      lastPingSecondsAgo,
+    ],
+  );
+  return result.rows[0]!.id;
+}
+
+export async function seedRouteStop(
+  driverId: string,
+  localityId: string,
+  position: number,
+): Promise<string> {
+  const result = await query<{ id: string }>(
+    `INSERT INTO route_stops (driver_id, locality_id, position)
+     VALUES ($1, $2, $3)
+     RETURNING id`,
+    [driverId, localityId, position],
+  );
+  return result.rows[0]!.id;
+}
+
+export interface SeedTicketInput {
+  localityId: string;
+  lat?: number;
+  lng?: number;
+  firstReportedAt?: Date;
+  status?: 'open' | 'offered' | 'assigned' | 'completed';
+  reportCount?: number;
+  assignedDriverId?: string | null;
+  rewardEligible?: boolean;
+}
+
+export async function seedTicket({
+  localityId,
+  lat = 18.5204,
+  lng = 73.8567,
+  firstReportedAt = new Date(),
+  status = 'open',
+  reportCount = 1,
+  assignedDriverId = null,
+  rewardEligible = true,
+}: SeedTicketInput): Promise<string> {
+  const result = await query<{ id: string }>(
+    `INSERT INTO tickets (
+       locality_id, location, status, report_count, first_reported_at,
+       assigned_driver_id, reward_eligible
+     )
+     VALUES (
+       $1,
+       ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
+       $4, $5, $6, $7, $8
+     )
+     RETURNING id`,
+    [
+      localityId,
+      lng,
+      lat,
+      status,
+      reportCount,
+      firstReportedAt,
+      assignedDriverId,
+      rewardEligible,
+    ],
   );
   return result.rows[0]!.id;
 }

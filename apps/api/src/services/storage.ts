@@ -22,6 +22,10 @@ function reportsDirectory(): string {
   return resolve(storageRoot(), 'reports');
 }
 
+function completionsDirectory(): string {
+  return resolve(storageRoot(), 'completions');
+}
+
 async function differenceHash(buffer: Buffer): Promise<string> {
   const raw = await sharp(buffer)
     .greyscale()
@@ -82,6 +86,19 @@ export async function saveReportPhoto(buffer: Buffer): Promise<string> {
 export async function deleteReportPhoto(filename: string): Promise<void> {
   if (!PHOTO_FILENAME_PATTERN.test(filename)) return;
   await rm(resolve(reportsDirectory(), filename), { force: true });
+}
+
+export async function saveCompletionPhoto(buffer: Buffer): Promise<string> {
+  const filename = `${randomUUID()}.jpg`;
+  const directory = completionsDirectory();
+  await mkdir(directory, { recursive: true });
+  await writeFile(resolve(directory, filename), buffer);
+  return filename;
+}
+
+export async function deleteCompletionPhoto(filename: string): Promise<void> {
+  if (!PHOTO_FILENAME_PATTERN.test(filename)) return;
+  await rm(resolve(completionsDirectory(), filename), { force: true });
 }
 
 export function reportPhotoPath(filename: string): string {

@@ -1,0 +1,5 @@
+# Fake sample drivers for local development. Replace before any real use.
+# route = semicolon-separated locality names, in regular stop order.
+name,email,password,phone,vehicle_no,route
+Ravi Kumar,ravi@overflowgo.local,driver123,9876543210,MH-12-AB-1234,Area A;Area B;Area C;Area D
+Meera Joshi,meera@overflowgo.local,driver123,9876543211,MH-12-CD-5678,Area E;Area F;Area G;Area H

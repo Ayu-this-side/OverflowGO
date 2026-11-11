@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import multer from 'multer';
 import type { AppConfig } from '@overflowgo/shared';
 import { ApiError } from './errors';
+import { createDriverRouter } from './routes/driver';
 import { createReportsRouter } from './routes/reports';
 import { createAiClient, type AiClient } from './services/ai';
 
@@ -35,6 +36,7 @@ export function createApp({ config, ai }: AppDependencies): express.Express {
   });
 
   app.use('/api', createReportsRouter({ config, ai: aiClient }));
+  app.use('/api', createDriverRouter({ config, ai: aiClient }));
 
   app.use((req, res) => {
     res.status(404).json({ error: 'not_found', path: req.path });
