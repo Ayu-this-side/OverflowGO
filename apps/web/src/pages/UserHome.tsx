@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { TicketStatus } from '@overflowgo/shared';
 import CameraCapture, { type CameraError } from '../components/CameraCapture';
+import InstallPrompt from '../components/InstallPrompt';
 import { useI18n, type TranslationKey } from '../i18n';
 import {
   ApiError,
@@ -555,6 +556,8 @@ export default function UserHome() {
           <p className="mt-4 text-xs leading-relaxed text-gray-500">
             {t('privacyNote')}
           </p>
+
+          <InstallPrompt />
         </section>
       )}
 

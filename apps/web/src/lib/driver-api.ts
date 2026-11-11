@@ -138,6 +138,42 @@ export function setVanFull(
   );
 }
 
+export interface PushKeyResponse {
+  enabled: boolean;
+  publicKey: string | null;
+}
+
+export interface PushSubscriptionPayload {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+export function getPushKey(token: string): Promise<PushKeyResponse> {
+  return jsonRequest('/api/driver/push/key', { token });
+}
+
+export function subscribePush(
+  token: string,
+  subscription: PushSubscriptionPayload,
+): Promise<{ subscribed: boolean }> {
+  return jsonRequest('/api/driver/push/subscribe', {
+    method: 'POST',
+    token,
+    body: subscription,
+  });
+}
+
+export function unsubscribePush(
+  token: string,
+  endpoint: string,
+): Promise<{ subscribed: boolean }> {
+  return jsonRequest('/api/driver/push/unsubscribe', {
+    method: 'POST',
+    token,
+    body: { endpoint },
+  });
+}
+
 export async function completeDriverTicket(
   token: string,
   ticketId: string,

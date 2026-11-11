@@ -10,6 +10,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
+      workbox: {
+        importScripts: ['push-sw.js'],
+      },
       manifest: {
         name: 'OverflowGo',
         short_name: 'OverflowGo',

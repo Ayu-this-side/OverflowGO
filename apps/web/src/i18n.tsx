@@ -77,6 +77,11 @@ const en = {
   queueBannerMany: '{count} saved reports are waiting to send.',
   offlineBanner:
     "You're offline. Reports will be saved and sent automatically.",
+  installTitle: 'Install OverflowGo',
+  installBody:
+    'Keep the report button one tap away and get a full-screen camera.',
+  installButton: 'Install app',
+  installDismiss: 'Not now',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -148,6 +153,11 @@ const hi: Record<TranslationKey, string> = {
   queueBannerMany: '{count} सहेजी हुई रिपोर्टें भेजने के लिए बाकी हैं।',
   offlineBanner:
     'आप ऑफ़लाइन हैं। रिपोर्ट सहेजी जाएगी और इंटरनेट आने पर भेज दी जाएगी।',
+  installTitle: 'OverflowGo इंस्टॉल करें',
+  installBody:
+    'रिपोर्ट बटन एक टैप पर रखें और पूरी स्क्रीन वाला कैमरा पाएं।',
+  installButton: 'ऐप इंस्टॉल करें',
+  installDismiss: 'अभी नहीं',
 };
 
 const translations: Record<Language, Record<TranslationKey, string>> = {

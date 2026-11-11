@@ -7,6 +7,7 @@ import {
   driverLogin,
   getDriverSession,
   getDriverWallet,
+  getPushKey,
   isUnauthorized,
   sendDriverLocation,
   setDriverOnline,
@@ -19,6 +20,20 @@ import {
   type DriverSession,
 } from '../lib/driver-session';
 import { GeoError, getCurrentPosition } from '../lib/geo';
+import {
+  enableDriverPush,
+  pushSupported,
+  refreshDriverPush,
+} from '../lib/push';
+
+type PushState =
+  | 'unknown'
+  | 'ready'
+  | 'on'
+  | 'denied'
+  | 'unsupported'
+  | 'not_configured'
+  | 'failed';
 
 export default function DriverHome() {
   const [session, setSession] = useState<DriverSession | null>(() =>
@@ -36,6 +51,8 @@ export default function DriverHome() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [vanBusy, setVanBusy] = useState(false);
+  const [pushState, setPushState] = useState<PushState>('unknown');
+  const [pushBusy, setPushBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const logout = useCallback(() => {
@@ -92,6 +109,44 @@ export default function DriverHome() {
       active = false;
     };
   }, [session, driver?.isOnline, logout]);
+
+  useEffect(() => {
+    if (!session) {
+      setPushState('unknown');
+      return;
+    }
+    if (!pushSupported()) {
+      setPushState('unsupported');
+      return;
+    }
+
+    let active = true;
+    getPushKey(session.token)
+      .then((key) => {
+        if (!active) return;
+        if (!key.enabled) {
+          setPushState('not_configured');
+          return;
+        }
+        if (Notification.permission === 'denied') {
+          setPushState('denied');
+          return;
+        }
+        if (Notification.permission === 'granted') {
+          setPushState('on');
+          void refreshDriverPush(session.token);
+        } else {
+          setPushState('ready');
+        }
+      })
+      .catch((cause: unknown) => {
+        if (active && isUnauthorized(cause)) logout();
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session, logout]);
 
   useEffect(() => {
     if (!session || !driver?.isOnline) return;
@@ -152,6 +207,7 @@ export default function DriverHome() {
           lng: position.lng,
         });
         applyDriver(result.driver);
+        void refreshDriverPush(session.token);
       } else {
         const result = await setDriverOnline(session.token, false);
         applyDriver(result.driver);
@@ -175,6 +231,14 @@ export default function DriverHome() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleEnablePush = async () => {
+    if (!session || pushBusy) return;
+    setPushBusy(true);
+    const result = await enableDriverPush(session.token);
+    setPushState(result === 'enabled' ? 'on' : result);
+    setPushBusy(false);
   };
 
   const toggleVan = async () => {
@@ -389,6 +453,33 @@ export default function DriverHome() {
           </p>
         </div>
       </section>
+
+      {pushState !== 'unknown' &&
+        pushState !== 'unsupported' &&
+        pushState !== 'not_configured' && (
+          <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-brand-100">
+            {pushState === 'on' ? (
+              <p className="text-sm font-semibold text-brand-700">
+                Job alerts are on for this browser.
+              </p>
+            ) : pushState === 'ready' ? (
+              <button
+                type="button"
+                onClick={() => void handleEnablePush()}
+                disabled={pushBusy}
+                className="w-full rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {pushBusy ? 'Turning on alerts…' : 'Enable job alerts'}
+              </button>
+            ) : (
+              <p className="text-sm text-gray-600" role="status">
+                {pushState === 'denied'
+                  ? 'Notifications are blocked. Allow them in your browser settings to get job alerts when the app is closed.'
+                  : "We couldn't turn on job alerts. You will still get pop-ups while the app is open."}
+              </p>
+            )}
+          </section>
+        )}
 
       <Link
         to="/driver/route"

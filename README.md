@@ -18,8 +18,8 @@ Full product and design docs live in [`OverflowGo_MD_Docs/`](./OverflowGo_MD_Doc
 | 1 | Core reporting, tickets, user PWA | complete |
 | 2 | Driver login, routes, completion flow | complete |
 | 3 | Live dispatch, SLA, rewards, wallet | complete |
-| 4 | Hardening: retention, hashes, PWA, i18n | planned |
-| 5 | Optional: retraining collection, blurring | planned |
+| 4 | Hardening: retention, hashes, PWA, i18n | complete |
+| 5 | Optional: retraining collection, blurring | optional collection available; blurring deferred |
 
 ## Stack
 
@@ -221,6 +221,82 @@ offer-expiry tick every 5 s.
 
 The dispatch schema additions live in `apps/api/migrations/003_dispatch.sql`.
 
+## Hardening (Phase 4)
+
+### Photo retention
+
+`apps/api/src/services/retention.ts` runs 10 seconds after startup and then
+every 6 hours. Once a ticket has been `completed` for longer than
+`photoRetentionDaysAfterClose` (7 days), it deletes the report photo files and
+the after photo file and clears the stored paths. Report and completion rows
+stay so counts and history still work. Optional training samples are pruned by
+`retrainingRetentionDays` and `retrainingMaxSamples`.
+
+### Duplicate and idempotent reports
+
+- `clientReportId` makes report retries idempotent.
+- Photos are re-encoded and reduced to a 64-bit difference hash. A new photo
+  within `duplicatePhotoHashMaxDistance` (6 bits) of a report from the last 24
+  hours is attached to that ticket instead of creating another, even if the GPS
+  drift is more than the 5 m merge radius.
+- Location merges still apply within `duplicateMergeRadiusMeters` (5 m).
+
+### Web Push when the app is closed
+
+Web Push is optional and off until VAPID keys are configured:
+
+```bash
+npx web-push generate-vapid-keys
+# put the two values in .env:
+# VAPID_PUBLIC_KEY=...
+# VAPID_PRIVATE_KEY=...
+# VAPID_SUBJECT=mailto:you@example.com
+```
+
+The driver dashboard then shows **Enable job alerts**. The browser subscribes,
+the API stores it in `push_subscriptions`, and offers are sent through Web Push
+only when that driver has no live socket connection. Tapping the notification
+opens `/driver/route`. The service worker handlers live in
+`apps/web/public/push-sw.js` and are injected into the generated PWA worker.
+
+Endpoints: `GET /api/driver/push/key` (enabled flag + public key),
+`POST /api/driver/push/subscribe`, `POST /api/driver/push/unsubscribe`.
+
+### PWA install, language and accessibility
+
+- The citizen page shows an **Install app** prompt when the browser fires
+  `beforeinstallprompt`; “Not now” is remembered locally.
+- English and Hindi strings cover the full citizen flow.
+- Result screens use `aria-live`, permission problems use `role="alert"`, tap
+  targets are large, and the language toggle has an accessible label.
+
+### Load test
+
+The script writes real tickets/offers, so it requires `--confirm`:
+
+```bash
+npm run load:test -- --confirm
+npm run load:test -- --confirm --reports 200 --drivers 50 --duration 60
+```
+
+It creates temporary online drivers near the first seeded locality, sends
+reports through the real API and AI service, keeps heartbeats running, prints
+p50/p95 latency and deletes the temporary drivers afterwards. The default plan
+matches the Phase 4 target of 200 reports/hour with 50 concurrent drivers.
+
+## Optional training collection (Phase 5)
+
+Retraining collection is implemented but **off by default**. Set
+`retrainingCollection: true` in `config/app.config.json` to keep only photos
+whose highest overflow/garbage confidence falls between `retrainingConfMin` and
+`retrainingConfMax` (default 0.25–0.60). Samples go to
+`uploads/training` with a row in `retraining_samples`, capped at
+`retrainingMaxSamples` (500) and deleted after `retrainingRetentionDays` (30).
+Nothing is uploaded anywhere; export the folder manually when retraining.
+
+Face/number-plate blurring is not enabled: it needs a separate detector that is
+not part of the owner's model, and it stays optional per the product docs.
+
 ## Calibration
 
 The accept/verify thresholds are calibrated, not guessed:
@@ -267,9 +343,10 @@ non-test database.
 ## Configuration
 
 All tunable values live in [`config/app.config.json`](./config/app.config.json):
-geofence radii, offer timeout, SLA, merge radius, AI thresholds, rewards,
-retention, timezone and the dump-yard location. The API validates the file at
-startup with Zod and refuses to boot on invalid values.
+geofence radii, offer timeout, SLA, merge radius and photo-hash distance, AI
+thresholds, rewards, retention, optional training collection, timezone and the
+dump-yard location. The API validates the file at startup with Zod and refuses
+to boot on invalid values.
 
 Secrets and environment-specific settings live in `.env` (see `.env.example`).
 
