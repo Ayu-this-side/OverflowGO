@@ -9,6 +9,12 @@ import { createCompletionService } from '../services/completions';
 import type { DispatchService } from '../services/dispatch';
 import { computeDriverRoute } from '../services/driver-route';
 import { createDriverService } from '../services/drivers';
+import {
+  isPushEnabled,
+  pushPublicKey,
+  removePushSubscription,
+  savePushSubscription,
+} from '../services/push';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,6 +50,18 @@ const CompleteBodySchema = z.object({
 
 const RespondSchema = z.object({
   response: z.enum(['accept', 'reject']),
+});
+
+const PushSubscribeSchema = z.object({
+  endpoint: z.string().url().max(2000),
+  keys: z.object({
+    p256dh: z.string().min(1).max(500),
+    auth: z.string().min(1).max(500),
+  }),
+});
+
+const PushUnsubscribeSchema = z.object({
+  endpoint: z.string().url().max(2000),
 });
 
 function validationMessage(error: z.ZodError): string {
@@ -199,6 +217,51 @@ export function createDriverRouter({
       next(error);
     }
   });
+
+  router.get('/driver/push/key', requireDriver, (_req, res) => {
+    res.json({ enabled: isPushEnabled(), publicKey: pushPublicKey() });
+  });
+
+  router.post('/driver/push/subscribe', requireDriver, async (req, res, next) => {
+    try {
+      const parsed = PushSubscribeSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ApiError(
+          400,
+          validationMessage(parsed.error),
+          'validation_error',
+        );
+      }
+      await savePushSubscription(currentDriverId(req), parsed.data);
+      res.status(201).json({ subscribed: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post(
+    '/driver/push/unsubscribe',
+    requireDriver,
+    async (req, res, next) => {
+      try {
+        const parsed = PushUnsubscribeSchema.safeParse(req.body);
+        if (!parsed.success) {
+          throw new ApiError(
+            400,
+            validationMessage(parsed.error),
+            'validation_error',
+          );
+        }
+        await removePushSubscription(
+          currentDriverId(req),
+          parsed.data.endpoint,
+        );
+        res.json({ subscribed: false });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   router.post(
     '/driver/tickets/:ticketId/complete',

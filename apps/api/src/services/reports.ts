@@ -13,6 +13,7 @@ import { ApiError } from '../errors';
 import type { AiClient } from './ai';
 import { emitRouteChanged } from './route-events';
 import { deleteReportPhoto, preparePhoto, saveReportPhoto } from './storage';
+import { maybeSaveTrainingSample } from './training';
 
 export const REJECT_NO_GARBAGE =
   "We couldn't find an overflowing bin or garbage in this photo. Please retake it.";
@@ -113,18 +114,27 @@ async function findByClientReportId(
 
 async function findDuplicatePhoto(
   photoHash: string,
+  maxDistance: number,
 ): Promise<{ ticket_id: string; locality_id: string } | null> {
   const result = await query<{ ticket_id: string; locality_id: string }>(
     `SELECT r.ticket_id, t.locality_id
        FROM reports r
        JOIN tickets t ON t.id = r.ticket_id
-      WHERE r.photo_hash = $1
-        AND r.result <> 'rejected'
+      WHERE r.result <> 'rejected'
         AND r.ticket_id IS NOT NULL
+        AND r.photo_hash IS NOT NULL
+        AND length(r.photo_hash) = 16
+        AND length($1) = 16
         AND r.created_at > now() - interval '24 hours'
-      ORDER BY r.created_at DESC
+        AND bit_count(
+              ('x' || r.photo_hash)::bit(64) # ('x' || $1)::bit(64)
+            ) <= $2
+      ORDER BY bit_count(
+                 ('x' || r.photo_hash)::bit(64) # ('x' || $1)::bit(64)
+               ) ASC,
+               r.created_at DESC
       LIMIT 1`,
-    [photoHash],
+    [photoHash, maxDistance],
   );
   return result.rows[0] ?? null;
 }
@@ -306,6 +316,8 @@ export function createReportService({
       const garbageConf = prediction.garbage_conf ?? 0;
       const binConf = prediction.bin_conf ?? 0;
 
+      await maybeSaveTrainingSample(prepared.buffer, prediction, config);
+
       const overflowHit = overflowConf >= config.aiOverflowThreshold;
       const garbageHit = garbageConf >= config.aiGarbageThreshold;
       const binHit = binConf >= config.aiBinThreshold;
@@ -351,7 +363,10 @@ export function createReportService({
               ? 'garbage'
               : 'garbage_bin';
 
-      const duplicate = await findDuplicatePhoto(prepared.hash);
+      const duplicate = await findDuplicatePhoto(
+        prepared.hash,
+        config.duplicatePhotoHashMaxDistance,
+      );
       if (duplicate) {
         try {
           const inserted = await insertReportSafely({

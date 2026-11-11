@@ -5,6 +5,7 @@ import { verifyDriverToken } from './services/auth';
 import { dispatchEvents, type OfferNewEvent, type OfferClosedEvent, type TicketReleasedEvent } from './services/dispatch-events';
 import { computeDriverRoute } from './services/driver-route';
 import { createDriverService } from './services/drivers';
+import { sendOfferPush } from './services/push';
 import { routeEvents } from './services/route-events';
 
 interface SocketData {
@@ -108,7 +109,13 @@ export function attachSocket(
   );
 
   dispatchEvents.on('offer:new', ({ driverId, offer }: OfferNewEvent) => {
-    io.to(`driver:${driverId}`).emit('offer:new', offer);
+    const room = `driver:${driverId}`;
+    io.to(room).emit('offer:new', offer);
+
+    // No live socket means the app is probably closed; fall back to Web Push.
+    if (!io.sockets.adapter.rooms.get(room)?.size) {
+      void sendOfferPush(driverId, offer);
+    }
   });
 
   dispatchEvents.on(

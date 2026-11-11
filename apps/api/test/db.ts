@@ -27,6 +27,8 @@ const TABLES_TO_TRUNCATE = [
   'tickets',
   'route_stops',
   'driver_devices',
+  'push_subscriptions',
+  'retraining_samples',
   'drivers',
   'localities',
 ];

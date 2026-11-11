@@ -260,7 +260,7 @@ describe('POST /api/reports', () => {
 
     const first = await postReport(app, { photo: await makePhoto(10) });
     const second = await postReport(app, {
-      photo: await makePhoto(11),
+      photo: await makePhoto(137),
       lat: PHOTO_LAT + 0.00002,
       lng: PHOTO_LNG + 0.00002,
       deviceId: 'other-device',

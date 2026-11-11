@@ -29,6 +29,7 @@ export interface AppConfig {
   offerTimeoutSeconds: number;
   taskSlaMinutes: number;
   duplicateMergeRadiusMeters: number;
+  duplicatePhotoHashMaxDistance: number;
   driverProximityNoRewardMeters: number;
   driverHeartbeatSeconds: number;
   driverStaleAfterSeconds: number;
@@ -41,6 +42,11 @@ export interface AppConfig {
   rewardPerExtraJob: number;
   rewardDailyCapPerDriver: number;
   photoRetentionDaysAfterClose: number;
+  retrainingCollection: boolean;
+  retrainingConfMin: number;
+  retrainingConfMax: number;
+  retrainingMaxSamples: number;
+  retrainingRetentionDays: number;
   skipOfferIfRouteDueWithinMinutes: number;
   timezone: string;
   acceptanceScorePenalty: number;

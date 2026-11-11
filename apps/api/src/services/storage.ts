@@ -26,6 +26,10 @@ function completionsDirectory(): string {
   return resolve(storageRoot(), 'completions');
 }
 
+function trainingDirectory(): string {
+  return resolve(storageRoot(), 'training');
+}
+
 async function differenceHash(buffer: Buffer): Promise<string> {
   const raw = await sharp(buffer)
     .greyscale()
@@ -99,6 +103,20 @@ export async function saveCompletionPhoto(buffer: Buffer): Promise<string> {
 export async function deleteCompletionPhoto(filename: string): Promise<void> {
   if (!PHOTO_FILENAME_PATTERN.test(filename)) return;
   await rm(resolve(completionsDirectory(), filename), { force: true });
+}
+
+/** Optional Phase 5 training collection. Stored separately from reports. */
+export async function saveTrainingPhoto(buffer: Buffer): Promise<string> {
+  const filename = `${randomUUID()}.jpg`;
+  const directory = trainingDirectory();
+  await mkdir(directory, { recursive: true });
+  await writeFile(resolve(directory, filename), buffer);
+  return filename;
+}
+
+export async function deleteTrainingPhoto(filename: string): Promise<void> {
+  if (!PHOTO_FILENAME_PATTERN.test(filename)) return;
+  await rm(resolve(trainingDirectory(), filename), { force: true });
 }
 
 export function reportPhotoPath(filename: string): string {

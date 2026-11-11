@@ -4,6 +4,8 @@ import { Server } from 'socket.io';
 import { loadConfig } from './config';
 import { createApp } from './app';
 import type { DispatchService } from './services/dispatch';
+import { isPushEnabled } from './services/push';
+import { createRetentionService } from './services/retention';
 import { attachSocket } from './socket';
 
 const config = loadConfig();
@@ -28,6 +30,38 @@ const dispatchTimer = setInterval(() => {
 }, 5_000);
 dispatchTimer.unref();
 
+const retention = createRetentionService({ config });
+async function runRetention(): Promise<void> {
+  try {
+    const result = await retention.run();
+    if (
+      result.reportPhotos ||
+      result.completionPhotos ||
+      result.trainingSamples
+    ) {
+      console.log(
+        `[retention] deleted ${result.reportPhotos} report photo(s), ` +
+          `${result.completionPhotos} completion photo(s), ` +
+          `${result.trainingSamples} training sample(s)`,
+      );
+    }
+  } catch (error) {
+    console.error('[retention] run failed:', error);
+  }
+}
+
+const retentionStartup = setTimeout(() => void runRetention(), 10_000);
+retentionStartup.unref();
+const retentionTimer = setInterval(
+  () => void runRetention(),
+  6 * 60 * 60 * 1000,
+);
+retentionTimer.unref();
+
+console.log(
+  `[push] Web Push ${isPushEnabled() ? 'enabled' : 'disabled (set VAPID keys to enable)'}`,
+);
+
 httpServer.listen(port, () => {
   console.log(`[api] OverflowGo API listening on http://localhost:${port}`);
   console.log(`[api] Health check: http://localhost:${port}/api/health`);
@@ -36,6 +70,8 @@ httpServer.listen(port, () => {
 function shutdown(signal: string): void {
   console.log(`[api] ${signal} received, shutting down`);
   clearInterval(dispatchTimer);
+  clearInterval(retentionTimer);
+  clearTimeout(retentionStartup);
   io.close();
   httpServer.close(() => process.exit(0));
 }
