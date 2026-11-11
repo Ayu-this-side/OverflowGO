@@ -8,12 +8,18 @@ interface CameraCaptureProps {
   onCapture: (photo: Blob) => void;
   onError: (reason: CameraError) => void;
   onCancel: () => void;
+  title?: string;
+  hint?: string;
+  captureLabel?: string;
 }
 
 export default function CameraCapture({
   onCapture,
   onError,
   onCancel,
+  title,
+  hint,
+  captureLabel,
 }: CameraCaptureProps) {
   const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -80,8 +86,10 @@ export default function CameraCapture({
 
   return (
     <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-brand-100">
-      <h2 className="text-lg font-bold text-gray-900">{t('cameraTitle')}</h2>
-      <p className="mt-1 text-sm text-gray-600">{t('cameraHint')}</p>
+      <h2 className="text-lg font-bold text-gray-900">
+        {title ?? t('cameraTitle')}
+      </h2>
+      <p className="mt-1 text-sm text-gray-600">{hint ?? t('cameraHint')}</p>
 
       <div className="relative mt-4 aspect-[3/4] overflow-hidden rounded-2xl bg-black">
         <video
@@ -105,7 +113,7 @@ export default function CameraCapture({
         disabled={!ready || capturing}
         className="mt-4 w-full rounded-2xl bg-brand-700 px-5 py-4 text-lg font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {t('captureButton')}
+        {captureLabel ?? t('captureButton')}
       </button>
       <button
         type="button"

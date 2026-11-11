@@ -16,7 +16,7 @@ Full product and design docs live in [`OverflowGo_MD_Docs/`](./OverflowGo_MD_Doc
 |---|---|---|
 | 0 | Monorepo, Docker, config, AI service, calibration | complete |
 | 1 | Core reporting, tickets, user PWA | complete |
-| 2 | Driver login, routes, completion flow | planned |
+| 2 | Driver login, routes, completion flow | complete |
 | 3 | Live dispatch, SLA, rewards, wallet | planned |
 | 4 | Hardening: retention, hashes, PWA, i18n | planned |
 | 5 | Optional: retraining collection, blurring | planned |
@@ -63,6 +63,7 @@ cp .env.example .env
 npm run db:up
 npm run db:migrate
 npm run seed:localities
+npm run seed:drivers
 
 # 4. AI service (native, CPU)
 python -m venv .venv
@@ -85,6 +86,10 @@ install usually owns 5432. `.env.example` already uses 5433.
 `npm run seed:localities` loads the fake sample areas in
 `scripts/data/localities.sample.csv`. Replace that file with the real city
 areas when they are supplied, then re-run the command; names are upserted.
+
+`npm run seed:drivers` loads `scripts/data/drivers.sample.csv` and replaces each
+driver's regular stop order. The sample logins are `ravi@overflowgo.local` and
+`meera@overflowgo.local`, both with password `driver123` (development only).
 
 The AI service can also run in Docker:
 
@@ -124,6 +129,42 @@ API endpoints added in this phase:
 Reward safeguards are recorded at ticket creation: a report from a registered
 driver phone sets `reward_eligible = false`, and online drivers within 150 m are
 stored in `ticket_reward_exclusions` (rewards themselves arrive in Phase 3).
+
+## Driver portal (Phase 2)
+
+Open `/driver`, sign in with a seeded driver, and turn duty **Online**. The
+driver PWA then:
+
+1. Registers the browser's `deviceId` at login so reports from that device are
+   not reward-eligible.
+2. Sends a location heartbeat every `driverHeartbeatSeconds` (20 s by default,
+   from the config file) and connects an authenticated Socket.IO channel.
+3. Shows the route in the order required by the docs: stops with open tickets
+   first, oldest report first, then the driver's regular stops in their seeded
+   order. Each stop expands to a Leaflet map, report photo, note, report count
+   and a Google Maps navigate link.
+4. Updates live through `route:updated` whenever a report merges or is created
+   in one of the driver's localities, or when a ticket is released.
+5. Completes a job with a live after photo. The API accepts it only when the
+   driver owns the ticket (or covers its locality), the photo is within
+   `afterPhotoMaxDistanceMeters` (50 m), the AI sees a bin, and overflow and
+   garbage confidence stay below the verify thresholds. A failed check leaves
+   the ticket open so the driver can retake the photo.
+6. Going offline releases assigned tickets back to `open` so another driver can
+   pick them up.
+
+Driver endpoints added in this phase:
+
+- `POST /api/driver/login` — `email`, `password`, `deviceId` -> JWT + profile.
+- `GET /api/driver/me` — restore a session.
+- `POST /api/driver/online` — `{ online, lat?, lng? }`; going online requires a
+  location.
+- `POST /api/driver/location` — heartbeat coordinates.
+- `GET /api/driver/route` — ordered stops with open tickets and photos.
+- `POST /api/driver/tickets/:id/complete` — multipart `photo`, `lat`, `lng`.
+
+Socket events: the client connects with `auth.token` and listens for
+`route:updated`; it may also emit `location:update`.
 
 ## Calibration
 
