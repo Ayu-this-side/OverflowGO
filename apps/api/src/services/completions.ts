@@ -7,7 +7,7 @@ import { withTransaction, query } from '../db/pool';
 import { ApiError } from '../errors';
 import type { AiClient } from './ai';
 import { driverCoversLocality } from './driver-route';
-import { emitRouteChanged } from './route-events';
+import { emitDriverRouteChanged, emitRouteChanged } from './route-events';
 import {
   deleteCompletionPhoto,
   preparePhoto,
@@ -243,6 +243,9 @@ export function createCompletionService({
       }
 
       emitRouteChanged(ticket.locality_id);
+      // Also refresh the completing driver directly; they may be the only one
+      // affected and must not keep seeing the finished ticket.
+      emitDriverRouteChanged(driverId);
       return {
         verified: true,
         ticketStatus: 'completed',

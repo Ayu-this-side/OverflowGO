@@ -5,6 +5,23 @@ import type { DriverRoute } from '@overflowgo/shared';
 import DriverRoutePage from './DriverRoute';
 import { saveDriverSession } from '../lib/driver-session';
 
+const realtimeState = vi.hoisted(() => ({
+  latestRoute: null as DriverRoute | null,
+}));
+
+vi.mock('../lib/driver-realtime', () => ({
+  useDriverRealtime: () => ({
+    connected: true,
+    latestRoute: realtimeState.latestRoute,
+    offer: null,
+    offerBusy: false,
+    offerError: null,
+    acceptOffer: vi.fn(),
+    rejectOffer: vi.fn(),
+    dismissOffer: vi.fn(),
+  }),
+}));
+
 const route: DriverRoute = {
   stops: [
     {
@@ -49,6 +66,24 @@ const route: DriverRoute = {
   ],
 };
 
+const staleRoute: DriverRoute = {
+  stops: [
+    {
+      stopId: 'stop-g',
+      localityId: 'locality-g',
+      localityName: 'Area G',
+      hasTicket: true,
+      ticketIds: ['ticket-done'],
+      firstReportedAt: new Date(Date.now() - 24 * 60 * 60_000).toISOString(),
+      reportCount: 6,
+      current: false,
+      lat: 18.542,
+      lng: 73.865,
+      tickets: [],
+    },
+  ],
+};
+
 vi.mock('../lib/driver-api', () => ({
   DriverApiError: class DriverApiError extends Error {},
   getDriverRoute: vi.fn(async () => route),
@@ -75,6 +110,7 @@ function renderRoute() {
 
 beforeEach(() => {
   localStorage.clear();
+  realtimeState.latestRoute = null;
   saveDriverSession({
     token: 'test-token',
     heartbeatSeconds: 20,
@@ -110,5 +146,14 @@ describe('DriverRoute', () => {
     renderRoute();
 
     expect(await screen.findByText('Driver sign in')).toBeInTheDocument();
+  });
+
+  it('prefers a fresh route load over an older socket snapshot', async () => {
+    realtimeState.latestRoute = staleRoute;
+
+    renderRoute();
+
+    expect(await screen.findByText('Area B')).toBeInTheDocument();
+    expect(screen.queryByText('Area G')).not.toBeInTheDocument();
   });
 });

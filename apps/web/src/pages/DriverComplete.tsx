@@ -41,7 +41,7 @@ export default function DriverComplete() {
             return;
           }
         }
-        setError('This ticket is not on your route.');
+        setError('This job is no longer open. It may have been completed already.');
         setStep('details');
       })
       .catch((cause: unknown) => {
@@ -204,7 +204,7 @@ export default function DriverComplete() {
             </>
           ) : (
             <p className="text-sm text-gray-600">
-              This ticket is no longer open or is not on your route.
+              Return to your route to see the latest jobs.
             </p>
           )}
           {backToRoute}

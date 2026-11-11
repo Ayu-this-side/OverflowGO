@@ -206,15 +206,25 @@ function StopCard({ stop, index }: { stop: DriverRouteStop; index: number }) {
 export default function DriverRoutePage() {
   const [session] = useState(() => loadDriverSession());
   const [route, setRoute] = useState<DriverRoute | null>(null);
+  const [freshness, setFreshness] = useState({ fetched: 0, socket: 0 });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { connected, latestRoute } = useDriverRealtime();
+
+  // A socket route and a fetched route can arrive in either order. Track which
+  // kind arrived last so an old socket snapshot never hides a fresh load (for
+  // example right after a job is completed).
+  useEffect(() => {
+    if (!latestRoute) return;
+    setFreshness((current) => ({ ...current, socket: current.socket + 1 }));
+  }, [latestRoute]);
 
   const load = useCallback(async () => {
     if (!session) return;
     try {
       const next = await getDriverRoute(session.token);
       setRoute(next);
+      setFreshness((current) => ({ ...current, fetched: current.fetched + 1 }));
       setError(null);
     } catch (cause) {
       if (isUnauthorized(cause)) {
@@ -240,7 +250,9 @@ export default function DriverRoutePage() {
     return <Navigate to="/driver" replace />;
   }
 
-  const stops = (latestRoute ?? route)?.stops ?? [];
+  const shownRoute =
+    latestRoute && freshness.socket > freshness.fetched ? latestRoute : route;
+  const stops = shownRoute?.stops ?? [];
   const priorityCount = stops.filter((stop) => stop.hasTicket).length;
 
   return (
@@ -289,7 +301,7 @@ export default function DriverRoutePage() {
         </p>
       )}
 
-      {loading && !route && !latestRoute ? (
+      {loading && !shownRoute ? (
         <p className="mt-10 text-center text-sm text-gray-500">Loading route…</p>
       ) : stops.length ? (
         <ol className="space-y-3">

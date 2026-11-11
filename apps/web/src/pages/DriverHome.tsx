@@ -9,7 +9,6 @@ import {
   getDriverWallet,
   getPushKey,
   isUnauthorized,
-  sendDriverLocation,
   setDriverOnline,
   setVanFull,
 } from '../lib/driver-api';
@@ -147,31 +146,6 @@ export default function DriverHome() {
       active = false;
     };
   }, [session, logout]);
-
-  useEffect(() => {
-    if (!session || !driver?.isOnline) return;
-    let cancelled = false;
-
-    const send = async () => {
-      try {
-        const position = await getCurrentPosition();
-        if (cancelled) return;
-        await sendDriverLocation(session.token, position.lat, position.lng);
-      } catch {
-        // A single missed heartbeat is harmless; the next tick retries.
-      }
-    };
-
-    void send();
-    const timer = window.setInterval(
-      () => void send(),
-      Math.max(5, heartbeatSeconds) * 1000,
-    );
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [session, driver?.isOnline, heartbeatSeconds]);
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();

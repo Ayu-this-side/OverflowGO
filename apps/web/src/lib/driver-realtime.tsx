@@ -18,6 +18,7 @@ import {
   DriverApiError,
   isUnauthorized,
   respondToOffer,
+  sendDriverLocation,
 } from './driver-api';
 import {
   clearDriverSession,
@@ -25,6 +26,7 @@ import {
   subscribeDriverSession,
   type DriverSession,
 } from './driver-session';
+import { getCurrentPosition } from './geo';
 
 interface DriverRealtimeValue {
   connected: boolean;
@@ -143,6 +145,34 @@ export function DriverRealtimeProvider({ children }: { children: ReactNode }) {
       setConnected(false);
     };
   }, [token, enabled]);
+
+  // Keep the driver fresh on every /driver screen. Previously this only ran on
+  // the dashboard, so opening the route or completion screen let the driver go
+  // stale and stopped route updates and new offers.
+  useEffect(() => {
+    if (!token || !enabled || !session?.driver.isOnline) return;
+    let cancelled = false;
+
+    const send = async () => {
+      try {
+        const position = await getCurrentPosition();
+        if (cancelled) return;
+        await sendDriverLocation(token, position.lat, position.lng);
+      } catch {
+        // A single missed heartbeat is harmless; the next tick retries.
+      }
+    };
+
+    void send();
+    const timer = window.setInterval(
+      () => void send(),
+      Math.max(5, session.heartbeatSeconds) * 1000,
+    );
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [token, enabled, session?.driver.isOnline, session?.heartbeatSeconds]);
 
   const dismiss = useCallback(() => {
     setQueue((current) => current.slice(1));
