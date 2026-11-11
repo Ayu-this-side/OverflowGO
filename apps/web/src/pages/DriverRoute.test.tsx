@@ -28,6 +28,8 @@ const route: DriverRoute = {
           lng: 73.8567,
           note: 'Near the school gate',
           photoUrl: null,
+          assigned: false,
+          slaDeadline: null,
         },
       ],
     },

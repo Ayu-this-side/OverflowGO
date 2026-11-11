@@ -17,7 +17,7 @@ Full product and design docs live in [`OverflowGo_MD_Docs/`](./OverflowGo_MD_Doc
 | 0 | Monorepo, Docker, config, AI service, calibration | complete |
 | 1 | Core reporting, tickets, user PWA | complete |
 | 2 | Driver login, routes, completion flow | complete |
-| 3 | Live dispatch, SLA, rewards, wallet | planned |
+| 3 | Live dispatch, SLA, rewards, wallet | complete |
 | 4 | Hardening: retention, hashes, PWA, i18n | planned |
 | 5 | Optional: retraining collection, blurring | planned |
 
@@ -128,7 +128,7 @@ API endpoints added in this phase:
 
 Reward safeguards are recorded at ticket creation: a report from a registered
 driver phone sets `reward_eligible = false`, and online drivers within 150 m are
-stored in `ticket_reward_exclusions` (rewards themselves arrive in Phase 3).
+stored in `ticket_reward_exclusions`.
 
 ## Driver portal (Phase 2)
 
@@ -165,6 +165,61 @@ Driver endpoints added in this phase:
 
 Socket events: the client connects with `auth.token` and listens for
 `route:updated`; it may also emit `location:update`.
+
+## Live dispatch and rewards (Phase 3)
+
+A new accepted report now starts the live job market:
+
+1. The API fans out an offer to online, fresh (`driverStaleAfterSeconds`),
+   non-full drivers within `geofenceRadiusKm` (3 km) of the ticket. Drivers whose
+   regular route already covers the ticket's locality are skipped: in v1 the
+   fixed route has no timetable, so “locality is on my route” is the proxy for
+   “I will be there anyway”.
+2. The pop-up shows the report photo, note, distance, reward and a
+   `offerTimeoutSeconds` (30 s) countdown, and rings/vibrates the phone. The first
+   accept wins: assignment is a single conditional update, so a second accept
+   gets a `taken` response and the offer closes on the losing device.
+3. If nobody accepts the first round the ticket expands once to
+   `geofenceExpandedRadiusKm` (5 km). After that round it returns to `open` and
+   sits at the front of the covering driver's route, oldest report first.
+4. Accepting sets `assigned` and starts the `taskSlaMinutes` (45 min) clock. The
+   route screen shows the remaining time. Missing the SLA releases the ticket,
+   subtracts `acceptanceScorePenalty` from the late driver's acceptance score,
+   and re-offers it to other drivers (never the late one).
+5. A verified completion through an accepted pop-up pays
+   `rewardPerExtraJob` (₹20), capped at `rewardDailyCapPerDriver` (₹300) per
+   driver per day in the configured timezone. Route-stop completions, reports
+   from driver devices and proximity-excluded drivers earn nothing.
+6. **Van full** pauses pop-ups and prepends the configured `dumpYard` stop
+   (`Municipal Dump Yard` in dev). Tapping **Van emptied** clears it and resumes
+   offers. Going offline releases assigned tickets back to the market.
+
+The dashboard shows today's completed jobs, today's extra earnings and the
+wallet balance. Wallet history is available from `GET /api/driver/wallet`.
+
+### Payouts
+
+Rewards are tracked in `reward_ledger`; actual payouts happen outside the app.
+Export verified rewards for a date range (inclusive, configured timezone) as
+CSV:
+
+```bash
+npm run export:payouts -- --from 2026-11-01 --to 2026-11-30
+npm run export:payouts -- --from 2026-11-01 --to 2026-11-30 --out payouts.csv
+```
+
+### Dispatch endpoints and events
+
+- `POST /api/driver/offers/:id/respond` — `{ response: "accept" | "reject" }`;
+  `409` when another driver won or the offer expired.
+- `GET /api/driver/wallet` — balance, today's earnings/jobs, recent rewards.
+- `POST /api/driver/van-full` / `POST /api/driver/van-emptied`.
+
+Socket events: `offer:new`, `offer:closed` (`{ offerId, reason }`),
+`ticket:released` (`{ ticketId }`) and `route:updated`. The API runs an SLA and
+offer-expiry tick every 5 s.
+
+The dispatch schema additions live in `apps/api/migrations/003_dispatch.sql`.
 
 ## Calibration
 

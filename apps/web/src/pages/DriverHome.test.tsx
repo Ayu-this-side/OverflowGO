@@ -58,6 +58,14 @@ describe('DriverHome', () => {
       if (url.endsWith('/api/driver/me')) {
         return jsonResponse({ driver, heartbeatSeconds: 20 });
       }
+      if (url.endsWith('/api/driver/wallet')) {
+        return jsonResponse({
+          balance: 40,
+          todayEarned: 20,
+          todayCompletedJobs: 2,
+          items: [],
+        });
+      }
       throw new Error(`Unexpected request: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -83,6 +91,9 @@ describe('DriverHome', () => {
       'href',
       '/driver/route',
     );
+    expect(await screen.findByText('₹40')).toBeInTheDocument();
+    expect(screen.getByText('₹20')).toBeInTheDocument();
+    expect(screen.getByText(/jobs today/i)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

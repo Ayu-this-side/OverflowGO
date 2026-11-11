@@ -4,6 +4,7 @@ import type {
   DriverProfile,
   DriverRoute,
   DriverSessionResponse,
+  Wallet,
 } from '@overflowgo/shared';
 
 export class DriverApiError extends Error {
@@ -102,6 +103,39 @@ export function sendDriverLocation(
 
 export function getDriverRoute(token: string): Promise<DriverRoute> {
   return jsonRequest('/api/driver/route', { token });
+}
+
+export interface RespondOfferResult {
+  assigned: boolean;
+  ticketId: string;
+  reason?: 'taken' | 'expired' | 'rejected';
+  slaDeadline?: string;
+}
+
+export function respondToOffer(
+  token: string,
+  offerId: string,
+  response: 'accept' | 'reject',
+): Promise<RespondOfferResult> {
+  return jsonRequest(`/api/driver/offers/${encodeURIComponent(offerId)}/respond`, {
+    method: 'POST',
+    token,
+    body: { response },
+  });
+}
+
+export function getDriverWallet(token: string): Promise<Wallet> {
+  return jsonRequest('/api/driver/wallet', { token });
+}
+
+export function setVanFull(
+  token: string,
+  full: boolean,
+): Promise<{ driver: DriverProfile }> {
+  return jsonRequest(
+    full ? '/api/driver/van-full' : '/api/driver/van-emptied',
+    { method: 'POST', token },
+  );
 }
 
 export async function completeDriverTicket(

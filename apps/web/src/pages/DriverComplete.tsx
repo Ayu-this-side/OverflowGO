@@ -283,6 +283,11 @@ export default function DriverComplete() {
               : result.reason ??
                 'The AI still sees overflow or garbage. Please clean the spot and retake the photo.'}
           </p>
+          {result.verified && (result.reward ?? 0) > 0 && (
+            <p className="mt-3 rounded-xl bg-white px-3 py-2 text-base font-bold text-brand-700">
+              ₹{result.reward} added to your wallet.
+            </p>
+          )}
           {!result.verified && (
             <button
               type="button"

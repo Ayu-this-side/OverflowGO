@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import type { DriverProfile } from '@overflowgo/shared';
+import type { DriverProfile, Wallet } from '@overflowgo/shared';
 import { getDeviceId } from '../lib/device';
 import {
   DriverApiError,
   driverLogin,
   getDriverSession,
+  getDriverWallet,
   isUnauthorized,
   sendDriverLocation,
   setDriverOnline,
+  setVanFull,
 } from '../lib/driver-api';
 import {
   clearDriverSession,
@@ -28,10 +30,12 @@ export default function DriverHome() {
   const [heartbeatSeconds, setHeartbeatSeconds] = useState(
     () => loadDriverSession()?.heartbeatSeconds ?? 20,
   );
+  const [wallet, setWallet] = useState<Wallet | null>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [vanBusy, setVanBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const logout = useCallback(() => {
@@ -70,6 +74,24 @@ export default function DriverHome() {
     // Restore the session once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!session) {
+      setWallet(null);
+      return;
+    }
+    let active = true;
+    getDriverWallet(session.token)
+      .then((result) => {
+        if (active) setWallet(result);
+      })
+      .catch((cause: unknown) => {
+        if (active && isUnauthorized(cause)) logout();
+      });
+    return () => {
+      active = false;
+    };
+  }, [session, driver?.isOnline, logout]);
 
   useEffect(() => {
     if (!session || !driver?.isOnline) return;
@@ -152,6 +174,28 @@ export default function DriverHome() {
       }
     } finally {
       setBusy(false);
+    }
+  };
+
+  const toggleVan = async () => {
+    if (!session || !driver || vanBusy) return;
+    setVanBusy(true);
+    setError(null);
+    try {
+      const result = await setVanFull(session.token, !driver.vanFull);
+      applyDriver(result.driver);
+    } catch (cause) {
+      if (isUnauthorized(cause)) {
+        logout();
+      } else {
+        setError(
+          cause instanceof DriverApiError
+            ? cause.message
+            : 'Could not update the van status. Please try again.',
+        );
+      }
+    } finally {
+      setVanBusy(false);
     }
   };
 
@@ -295,6 +339,55 @@ export default function DriverHome() {
               ? 'Go offline'
               : 'Go online'}
         </button>
+        <button
+          type="button"
+          onClick={() => void toggleVan()}
+          disabled={vanBusy}
+          className={`mt-3 w-full rounded-2xl px-4 py-3 text-sm font-semibold disabled:opacity-60 ${
+            driver.isOnline
+              ? 'border border-white/40 text-white'
+              : 'border border-amber-300 bg-amber-50 text-amber-900'
+          }`}
+        >
+          {vanBusy
+            ? 'Updating van status…'
+            : driver.vanFull
+              ? 'Van emptied'
+              : 'Van full'}
+        </button>
+        {driver.vanFull && (
+          <p className="mt-2 text-xs opacity-80">
+            Pop-ups are paused and the dump yard is the first stop until you tap
+            “Van emptied”.
+          </p>
+        )}
+      </section>
+
+      <section className="mt-4 grid grid-cols-3 gap-2">
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm ring-1 ring-brand-100">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+            Jobs today
+          </p>
+          <p className="mt-1 text-xl font-bold text-gray-900">
+            {wallet?.todayCompletedJobs ?? '–'}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm ring-1 ring-brand-100">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+            Earned today
+          </p>
+          <p className="mt-1 text-xl font-bold text-gray-900">
+            {wallet ? `₹${wallet.todayEarned}` : '–'}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-white p-3 text-center shadow-sm ring-1 ring-brand-100">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+            Wallet
+          </p>
+          <p className="mt-1 text-xl font-bold text-brand-700">
+            {wallet ? `₹${wallet.balance}` : '–'}
+          </p>
+        </div>
       </section>
 
       <Link

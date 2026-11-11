@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { io, type Socket } from 'socket.io-client';
 import type { DriverRoute, DriverRouteStop, DriverRouteTicket } from '@overflowgo/shared';
 import StopMap from '../components/StopMap';
 import {
@@ -8,6 +7,7 @@ import {
   getDriverRoute,
   isUnauthorized,
 } from '../lib/driver-api';
+import { useDriverRealtime } from '../lib/driver-realtime';
 import { clearDriverSession, loadDriverSession } from '../lib/driver-session';
 
 function timeAgo(iso: string | null): string {
@@ -20,6 +20,35 @@ function timeAgo(iso: string | null): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} h ago`;
   return `${Math.floor(hours / 24)} d ago`;
+}
+
+function slaText(deadline: string): { label: string; late: boolean } {
+  const remaining = Date.parse(deadline) - Date.now();
+  if (!Number.isFinite(remaining) || remaining <= 0) {
+    return { label: 'SLA missed — releasing', late: true };
+  }
+  const minutes = Math.ceil(remaining / 60_000);
+  return { label: `SLA ${minutes} min left`, late: false };
+}
+
+function SlaBadge({ deadline }: { deadline: string }) {
+  const [text, setText] = useState(() => slaText(deadline));
+
+  useEffect(() => {
+    setText(slaText(deadline));
+    const timer = window.setInterval(() => setText(slaText(deadline)), 15_000);
+    return () => window.clearInterval(timer);
+  }, [deadline]);
+
+  return (
+    <span
+      className={`rounded-full px-2 py-1 text-xs font-semibold ${
+        text.late ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+      }`}
+    >
+      {text.label}
+    </span>
+  );
 }
 
 function TicketCard({ ticket }: { ticket: DriverRouteTicket }) {
@@ -38,6 +67,9 @@ function TicketCard({ ticket }: { ticket: DriverRouteTicket }) {
         <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold uppercase tracking-wide text-amber-900">
           {ticket.status === 'assigned' ? 'Assigned' : 'Open'}
         </span>
+        {ticket.assigned && ticket.slaDeadline && (
+          <SlaBadge deadline={ticket.slaDeadline} />
+        )}
         <span className="font-medium text-gray-600">
           {ticket.reportCount} report{ticket.reportCount === 1 ? '' : 's'}
         </span>
@@ -77,9 +109,11 @@ function StopCard({ stop, index }: { stop: DriverRouteStop; index: number }) {
   return (
     <li
       className={`rounded-3xl shadow-sm ring-1 ${
-        stop.hasTicket
-          ? 'bg-white ring-amber-200'
-          : 'bg-white ring-brand-100'
+        stop.isDumpYard
+          ? 'bg-amber-50 ring-amber-300'
+          : stop.hasTicket
+            ? 'bg-white ring-amber-200'
+            : 'bg-white ring-brand-100'
       }`}
     >
       <button
@@ -90,18 +124,25 @@ function StopCard({ stop, index }: { stop: DriverRouteStop; index: number }) {
       >
         <span
           className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold ${
-            stop.hasTicket
-              ? 'bg-amber-100 text-amber-900'
-              : 'bg-brand-100 text-brand-700'
+            stop.isDumpYard
+              ? 'bg-amber-200 text-amber-900'
+              : stop.hasTicket
+                ? 'bg-amber-100 text-amber-900'
+                : 'bg-brand-100 text-brand-700'
           }`}
         >
-          {index + 1}
+          {stop.isDumpYard ? '⌂' : index + 1}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-base font-bold text-gray-900">
               {stop.localityName}
             </span>
+            {stop.isDumpYard && (
+              <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                Van full
+              </span>
+            )}
             {stop.hasTicket && (
               <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                 Overflow reported
@@ -114,9 +155,11 @@ function StopCard({ stop, index }: { stop: DriverRouteStop; index: number }) {
             )}
           </span>
           <span className="mt-1 block text-sm text-gray-500">
-            {stop.hasTicket
-              ? `${stop.reportCount} report${stop.reportCount === 1 ? '' : 's'} · first ${timeAgo(stop.firstReportedAt)}`
-              : 'Regular stop'}
+            {stop.isDumpYard
+              ? 'Empty the van here. Pop-ups resume after you tap “Van emptied”.'
+              : stop.hasTicket
+                ? `${stop.reportCount} report${stop.reportCount === 1 ? '' : 's'} · first ${timeAgo(stop.firstReportedAt)}`
+                : 'Regular stop'}
           </span>
         </span>
         <span
@@ -132,9 +175,18 @@ function StopCard({ stop, index }: { stop: DriverRouteStop; index: number }) {
           <StopMap
             lat={stop.lat}
             lng={stop.lng}
-            label={`${stop.localityName} · stop ${index + 1}`}
+            label={`${stop.localityName} · ${stop.isDumpYard ? 'dump yard' : `stop ${index + 1}`}`}
           />
-          {stop.tickets.length ? (
+          {stop.isDumpYard ? (
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 block rounded-xl bg-brand-700 px-3 py-2 text-center text-sm font-semibold text-white"
+            >
+              Navigate to dump yard
+            </a>
+          ) : stop.tickets.length ? (
             <div className="mt-3 space-y-3">
               {stop.tickets.map((ticket) => (
                 <TicketCard key={ticket.ticketId} ticket={ticket} />
@@ -156,7 +208,7 @@ export default function DriverRoutePage() {
   const [route, setRoute] = useState<DriverRoute | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [live, setLive] = useState(false);
+  const { connected, latestRoute } = useDriverRealtime();
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -184,26 +236,11 @@ export default function DriverRoutePage() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (!session) return;
-    const socket: Socket = io({ auth: { token: session.token } });
-    socket.on('connect', () => setLive(true));
-    socket.on('disconnect', () => setLive(false));
-    socket.on('connect_error', () => setLive(false));
-    socket.on('route:updated', (next: DriverRoute) => {
-      setRoute(next);
-      setLive(true);
-    });
-    return () => {
-      socket.disconnect();
-    };
-  }, [session]);
-
   if (!session) {
     return <Navigate to="/driver" replace />;
   }
 
-  const stops = route?.stops ?? [];
+  const stops = (latestRoute ?? route)?.stops ?? [];
   const priorityCount = stops.filter((stop) => stop.hasTicket).length;
 
   return (
@@ -226,12 +263,12 @@ export default function DriverRoutePage() {
         <div className="flex flex-col items-end gap-2">
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-              live
+              connected
                 ? 'bg-brand-100 text-brand-700'
                 : 'bg-gray-100 text-gray-500'
             }`}
           >
-            {live ? 'Live' : 'Offline'}
+            {connected ? 'Live' : 'Offline'}
           </span>
           <button
             type="button"
@@ -252,7 +289,7 @@ export default function DriverRoutePage() {
         </p>
       )}
 
-      {loading && !route ? (
+      {loading && !route && !latestRoute ? (
         <p className="mt-10 text-center text-sm text-gray-500">Loading route…</p>
       ) : stops.length ? (
         <ol className="space-y-3">
