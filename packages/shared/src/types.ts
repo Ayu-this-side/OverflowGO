@@ -88,6 +88,8 @@ export interface DriverRouteTicket {
   lng: number;
   note: string | null;
   photoUrl: string | null;
+  assigned: boolean;
+  slaDeadline: string | null;
 }
 
 export interface DriverRouteStop {
@@ -102,6 +104,7 @@ export interface DriverRouteStop {
   lat: number;
   lng: number;
   tickets: DriverRouteTicket[];
+  isDumpYard?: boolean;
 }
 
 export interface DriverRoute {
@@ -123,6 +126,8 @@ export interface CompleteTicketResponse {
   verified: boolean;
   reason?: string;
   ticketStatus?: TicketStatus;
+  reward?: number;
+  rewardSkippedReason?: 'not_reward_eligible' | 'daily_cap' | 'route_stop';
 }
 
 export interface WalletItem {
@@ -134,6 +139,7 @@ export interface WalletItem {
 export interface Wallet {
   balance: number;
   todayEarned: number;
+  todayCompletedJobs: number;
   items: WalletItem[];
 }
 
@@ -165,6 +171,7 @@ export interface ReportStatusResponse {
 export interface OfferPayload {
   offerId: string;
   ticketId: string;
+  localityName: string;
   photoUrl: string | null;
   note: string | null;
   distanceMeters: number;

@@ -2,6 +2,7 @@ import type { AppConfig } from '@overflowgo/shared';
 import type { Server, Socket } from 'socket.io';
 import { query } from './db/pool';
 import { verifyDriverToken } from './services/auth';
+import { dispatchEvents, type OfferNewEvent, type OfferClosedEvent, type TicketReleasedEvent } from './services/dispatch-events';
 import { computeDriverRoute } from './services/driver-route';
 import { createDriverService } from './services/drivers';
 import { routeEvents } from './services/route-events';
@@ -24,31 +25,33 @@ function tokenFromSocket(socket: Socket): string | null {
 async function pushRoutes(
   io: Server,
   config: AppConfig,
-  localityId: string | null,
+  { localityId, driverId }: { localityId: string | null; driverId: string | null },
 ): Promise<void> {
-  const drivers = await query<{ id: string }>(
-    `SELECT DISTINCT d.id
-       FROM drivers d
-      WHERE d.is_online = true
-        AND d.last_ping_at > now() - make_interval(secs => $2)
-        AND (
-          $1::uuid IS NULL
-          OR EXISTS (
-            SELECT 1 FROM route_stops rs
-             WHERE rs.driver_id = d.id AND rs.locality_id = $1
-          )
-          OR EXISTS (
-            SELECT 1 FROM tickets t
-             WHERE t.assigned_driver_id = d.id AND t.locality_id = $1
-          )
-        )`,
-    [localityId, config.driverStaleAfterSeconds],
-  );
+  const drivers = driverId
+    ? { rows: [{ id: driverId }] }
+    : await query<{ id: string }>(
+        `SELECT DISTINCT d.id
+           FROM drivers d
+          WHERE d.is_online = true
+            AND d.last_ping_at > now() - make_interval(secs => $2)
+            AND (
+              $1::uuid IS NULL
+              OR EXISTS (
+                SELECT 1 FROM route_stops rs
+                 WHERE rs.driver_id = d.id AND rs.locality_id = $1
+              )
+              OR EXISTS (
+                SELECT 1 FROM tickets t
+                 WHERE t.assigned_driver_id = d.id AND t.locality_id = $1
+              )
+            )`,
+        [localityId, config.driverStaleAfterSeconds],
+      );
 
   await Promise.all(
     drivers.rows.map(async (driver) => {
       try {
-        const route = await computeDriverRoute(driver.id);
+        const route = await computeDriverRoute(driver.id, config);
         io.to(`driver:${driver.id}`).emit('route:updated', route);
       } catch (error) {
         console.error('[socket] route update failed:', error);
@@ -78,6 +81,10 @@ export function attachSocket(
     const driverId = (socket.data as SocketData).driverId;
     void socket.join(`driver:${driverId}`);
 
+    void computeDriverRoute(driverId, config)
+      .then((route) => socket.emit('route:updated', route))
+      .catch(() => undefined);
+
     socket.on('location:update', (payload: unknown) => {
       if (
         typeof payload !== 'object' ||
@@ -93,7 +100,28 @@ export function attachSocket(
     });
   });
 
-  routeEvents.on('changed', (localityId: string | null) => {
-    void pushRoutes(io, config, localityId);
+  routeEvents.on(
+    'changed',
+    (change: { localityId: string | null; driverId: string | null }) => {
+      void pushRoutes(io, config, change);
+    },
+  );
+
+  dispatchEvents.on('offer:new', ({ driverId, offer }: OfferNewEvent) => {
+    io.to(`driver:${driverId}`).emit('offer:new', offer);
   });
+
+  dispatchEvents.on(
+    'offer:closed',
+    ({ driverId, offerId, reason }: OfferClosedEvent) => {
+      io.to(`driver:${driverId}`).emit('offer:closed', { offerId, reason });
+    },
+  );
+
+  dispatchEvents.on(
+    'ticket:released',
+    ({ driverId, ticketId }: TicketReleasedEvent) => {
+      io.to(`driver:${driverId}`).emit('ticket:released', { ticketId });
+    },
+  );
 }

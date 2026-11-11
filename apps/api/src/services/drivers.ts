@@ -1,8 +1,9 @@
-import type { AppConfig, DriverProfile } from '@overflowgo/shared';
+import type { AppConfig, DriverProfile, Wallet } from '@overflowgo/shared';
 import { query } from '../db/pool';
 import { ApiError } from '../errors';
 import { signDriverToken, verifyPassword } from './auth';
-import { emitRouteChanged } from './route-events';
+import type { DispatchService } from './dispatch';
+import { emitDriverRouteChanged, emitRouteChanged } from './route-events';
 
 interface DriverRow {
   id: string;
@@ -55,12 +56,16 @@ export interface DriverService {
     lat: number,
     lng: number,
   ): Promise<boolean>;
+  setVanFull(driverId: string, full: boolean): Promise<DriverProfile>;
+  wallet(driverId: string): Promise<Wallet>;
 }
 
 export function createDriverService({
   config,
+  dispatch,
 }: {
   config: AppConfig;
+  dispatch?: DispatchService;
 }): DriverService {
   return {
     async login(email, password, deviceId) {
@@ -105,7 +110,7 @@ export function createDriverService({
     },
 
     async setOnline(driverId, online, location) {
-      const released = await query<{ locality_id: string }>(
+      const released = await query<{ id: string; locality_id: string }>(
         `UPDATE tickets
             SET status = 'open',
                 assigned_driver_id = NULL,
@@ -113,7 +118,7 @@ export function createDriverService({
                 sla_deadline = NULL
           WHERE assigned_driver_id = $1
             AND status = 'assigned'
-          RETURNING locality_id`,
+          RETURNING id, locality_id`,
         [driverId],
       );
 
@@ -137,8 +142,83 @@ export function createDriverService({
 
       for (const ticket of released.rows) {
         emitRouteChanged(ticket.locality_id);
+        if (!online && dispatch) {
+          // Released work goes back to the live market. Clearing the old offer
+          // rows lets drivers who lost the first round see it again.
+          await query('DELETE FROM offers WHERE ticket_id = $1', [ticket.id]);
+          await query('UPDATE tickets SET offer_round = 0 WHERE id = $1', [
+            ticket.id,
+          ]);
+          await dispatch
+            .dispatchTicket(ticket.id, { excludeDriverIds: [driverId] })
+            .catch((error: unknown) => {
+              console.error('[dispatch] release re-offer failed:', error);
+            });
+        }
       }
       return mapDriver(row);
+    },
+
+    async setVanFull(driverId, full) {
+      const result = await query<DriverRow>(
+        `UPDATE drivers
+            SET van_full = $2
+          WHERE id = $1
+          RETURNING ${DRIVER_COLUMNS}`,
+        [driverId, full],
+      );
+      const row = result.rows[0];
+      if (!row) {
+        throw new ApiError(404, 'Driver not found', 'not_found');
+      }
+      emitDriverRouteChanged(driverId);
+      return mapDriver(row);
+    },
+
+    async wallet(driverId) {
+      const startOfDay =
+        "(date_trunc('day', now() AT TIME ZONE $2)) AT TIME ZONE $2";
+      const [balance, today, jobs, items] = await Promise.all([
+        query<{ balance: string }>(
+          `SELECT COALESCE(SUM(amount), 0)::text AS balance
+             FROM reward_ledger
+            WHERE driver_id = $1`,
+          [driverId],
+        ),
+        query<{ earned: string }>(
+          `SELECT COALESCE(SUM(amount), 0)::text AS earned
+             FROM reward_ledger
+            WHERE driver_id = $1 AND created_at >= ${startOfDay}`,
+          [driverId, config.timezone],
+        ),
+        query<{ count: string }>(
+          `SELECT count(*)::text AS count
+             FROM completions
+            WHERE driver_id = $1
+              AND verified = true
+              AND created_at >= ${startOfDay}`,
+          [driverId, config.timezone],
+        ),
+        query<{ ticket_id: string; amount: string; created_at: Date }>(
+          `SELECT ticket_id, amount::text AS amount, created_at
+             FROM reward_ledger
+            WHERE driver_id = $1
+            ORDER BY created_at DESC
+            LIMIT 50`,
+          [driverId],
+        ),
+      ]);
+
+      return {
+        balance: Number(balance.rows[0]?.balance ?? 0),
+        todayEarned: Number(today.rows[0]?.earned ?? 0),
+        todayCompletedJobs: Number(jobs.rows[0]?.count ?? 0),
+        items: items.rows.map((row) => ({
+          ticketId: row.ticket_id,
+          amount: Number(row.amount),
+          createdAt: row.created_at.toISOString(),
+        })),
+      };
     },
 
     async heartbeat(driverId, lat, lng) {

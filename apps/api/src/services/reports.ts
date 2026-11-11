@@ -49,6 +49,9 @@ export interface ReportService {
 export interface ReportServiceDependencies {
   config: AppConfig;
   ai: AiClient;
+  dispatch?: {
+    dispatchTicket(ticketId: string): Promise<void>;
+  };
 }
 
 interface InsertReportInput {
@@ -287,6 +290,7 @@ async function existingAfterCollision(
 export function createReportService({
   config,
   ai,
+  dispatch,
 }: ReportServiceDependencies): ReportService {
   return {
     async submit(input) {
@@ -500,6 +504,17 @@ export function createReportService({
             message: MESSAGE_MERGED,
           };
         }
+
+        if (dispatch) {
+          try {
+            await dispatch.dispatchTicket(result.ticketId);
+          } catch (error) {
+            // The ticket still exists and stays open on the next route even if
+            // the live pop-up fan-out fails.
+            console.error('[dispatch] offer fan-out failed:', error);
+          }
+        }
+
         return {
           status: 'accepted',
           reportId: result.reportId,

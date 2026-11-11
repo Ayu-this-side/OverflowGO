@@ -6,16 +6,25 @@ import { ApiError } from './errors';
 import { createDriverRouter } from './routes/driver';
 import { createReportsRouter } from './routes/reports';
 import { createAiClient, type AiClient } from './services/ai';
+import { createDispatchService, type DispatchService } from './services/dispatch';
 
 export interface AppDependencies {
   config: AppConfig;
   /** Injectable for tests; production builds the HTTP client from env. */
   ai?: AiClient;
+  /** Injectable for tests; defaults to the real dispatch service. */
+  dispatch?: DispatchService;
 }
 
-export function createApp({ config, ai }: AppDependencies): express.Express {
+export function createApp({
+  config,
+  ai,
+  dispatch: injectedDispatch,
+}: AppDependencies): express.Express {
   const app = express();
   const aiClient = ai ?? createAiClient();
+  const dispatch = injectedDispatch ?? createDispatchService({ config });
+  app.locals.dispatch = dispatch;
 
   app.disable('x-powered-by');
   app.use(
@@ -35,8 +44,8 @@ export function createApp({ config, ai }: AppDependencies): express.Express {
     });
   });
 
-  app.use('/api', createReportsRouter({ config, ai: aiClient }));
-  app.use('/api', createDriverRouter({ config, ai: aiClient }));
+  app.use('/api', createReportsRouter({ config, ai: aiClient, dispatch }));
+  app.use('/api', createDriverRouter({ config, ai: aiClient, dispatch }));
 
   app.use((req, res) => {
     res.status(404).json({ error: 'not_found', path: req.path });

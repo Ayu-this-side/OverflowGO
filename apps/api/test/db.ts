@@ -163,6 +163,7 @@ export interface SeedTicketInput {
   reportCount?: number;
   assignedDriverId?: string | null;
   rewardEligible?: boolean;
+  slaDeadline?: Date | null;
 }
 
 export async function seedTicket({
@@ -174,16 +175,21 @@ export async function seedTicket({
   reportCount = 1,
   assignedDriverId = null,
   rewardEligible = true,
+  slaDeadline = null,
 }: SeedTicketInput): Promise<string> {
   const result = await query<{ id: string }>(
     `INSERT INTO tickets (
        locality_id, location, status, report_count, first_reported_at,
-       assigned_driver_id, reward_eligible
+       assigned_driver_id, reward_eligible, assigned_at, sla_deadline,
+       offer_round
      )
      VALUES (
        $1,
        ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
-       $4, $5, $6, $7, $8
+       $4, $5, $6, $7, $8,
+       CASE WHEN $7::uuid IS NULL THEN NULL ELSE now() END,
+       $9,
+       CASE WHEN $4::ticket_status = 'offered' THEN 1 ELSE 0 END
      )
      RETURNING id`,
     [
@@ -195,7 +201,30 @@ export async function seedTicket({
       firstReportedAt,
       assignedDriverId,
       rewardEligible,
+      slaDeadline,
     ],
+  );
+  return result.rows[0]!.id;
+}
+
+export async function seedOffer({
+  ticketId,
+  driverId,
+  response = null,
+  expiresAt = new Date(Date.now() + 30_000),
+  distanceMeters = 500,
+}: {
+  ticketId: string;
+  driverId: string;
+  response?: 'accepted' | 'rejected' | 'ignored' | 'expired' | 'taken_by_other' | null;
+  expiresAt?: Date;
+  distanceMeters?: number;
+}): Promise<string> {
+  const result = await query<{ id: string }>(
+    `INSERT INTO offers (ticket_id, driver_id, response, expires_at, distance_meters)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id`,
+    [ticketId, driverId, response, expiresAt, distanceMeters],
   );
   return result.rows[0]!.id;
 }

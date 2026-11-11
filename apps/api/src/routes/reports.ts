@@ -22,6 +22,9 @@ const ReportBodySchema = z.object({
 export interface ReportsRouterDependencies {
   config: AppConfig;
   ai: AiClient;
+  dispatch?: {
+    dispatchTicket(ticketId: string): Promise<void>;
+  };
 }
 
 function validationMessage(error: z.ZodError): string {
@@ -35,8 +38,9 @@ function validationMessage(error: z.ZodError): string {
 export function createReportsRouter({
   config,
   ai,
+  dispatch,
 }: ReportsRouterDependencies): Router {
-  const service = createReportService({ config, ai });
+  const service = createReportService({ config, ai, dispatch });
   const router = Router();
 
   router.post('/reports', uploadPhoto, async (req, res, next) => {

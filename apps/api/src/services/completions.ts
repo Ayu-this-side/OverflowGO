@@ -24,6 +24,7 @@ interface TicketRow {
   locality_id: string;
   status: TicketStatus;
   assigned_driver_id: string | null;
+  reward_eligible: boolean;
   distance_m: string;
 }
 
@@ -53,6 +54,7 @@ export function createCompletionService({
                 locality_id,
                 status,
                 assigned_driver_id,
+                reward_eligible,
                 ST_Distance(
                   location,
                   ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography
@@ -111,8 +113,15 @@ export function createCompletionService({
         afterPhotoPath = await saveCompletionPhoto(prepared.buffer);
       }
 
+      let reward = 0;
+      let rewardSkippedReason:
+        | 'not_reward_eligible'
+        | 'daily_cap'
+        | 'route_stop'
+        | undefined;
+
       try {
-        await withTransaction(async (client) => {
+        const outcome = await withTransaction(async (client) => {
           await client.query(
             `INSERT INTO completions (
                ticket_id, driver_id, after_photo_path, location,
@@ -145,17 +154,75 @@ export function createCompletionService({
             ],
           );
 
-          if (verified) {
-            await client.query(
-              `UPDATE tickets
-                  SET status = 'completed',
-                      completed_at = now(),
-                      assigned_driver_id = COALESCE(assigned_driver_id, $2)
-                WHERE id = $1`,
-              [ticketId, driverId],
-            );
+          if (!verified) {
+            return { reward: 0, reason: undefined };
           }
+
+          await client.query(
+            `UPDATE tickets
+                SET status = 'completed',
+                    completed_at = now(),
+                    assigned_driver_id = COALESCE(assigned_driver_id, $2)
+              WHERE id = $1`,
+            [ticketId, driverId],
+          );
+
+          const acceptedOffer = await client.query(
+            `SELECT 1
+               FROM offers
+              WHERE ticket_id = $1 AND driver_id = $2 AND response = 'accepted'
+              LIMIT 1`,
+            [ticketId, driverId],
+          );
+          if ((acceptedOffer.rowCount ?? 0) === 0) {
+            return { reward: 0, reason: 'route_stop' as const };
+          }
+
+          if (!ticket.reward_eligible) {
+            return { reward: 0, reason: 'not_reward_eligible' as const };
+          }
+
+          const excluded = await client.query(
+            `SELECT 1
+               FROM ticket_reward_exclusions
+              WHERE ticket_id = $1 AND driver_id = $2
+              LIMIT 1`,
+            [ticketId, driverId],
+          );
+          if ((excluded.rowCount ?? 0) > 0) {
+            return { reward: 0, reason: 'not_reward_eligible' as const };
+          }
+
+          const spent = await client.query<{ total: string }>(
+            `SELECT COALESCE(SUM(amount), 0)::text AS total
+               FROM reward_ledger
+              WHERE driver_id = $1
+                AND created_at >= (date_trunc('day', now() AT TIME ZONE $2)) AT TIME ZONE $2`,
+            [driverId, config.timezone],
+          );
+          const alreadyEarned = Number(spent.rows[0]?.total ?? 0);
+          if (
+            alreadyEarned + config.rewardPerExtraJob >
+            config.rewardDailyCapPerDriver
+          ) {
+            return { reward: 0, reason: 'daily_cap' as const };
+          }
+
+          const credited = await client.query<{ amount: string }>(
+            `INSERT INTO reward_ledger (driver_id, ticket_id, amount)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (ticket_id) DO NOTHING
+             RETURNING amount::text AS amount`,
+            [driverId, ticketId, config.rewardPerExtraJob],
+          );
+          return {
+            reward: Number(credited.rows[0]?.amount ?? 0),
+            reason: undefined,
+          };
         });
+
+        reward = outcome.reward;
+        rewardSkippedReason = outcome.reason;
       } catch (error) {
         if (afterPhotoPath) {
           await deleteCompletionPhoto(afterPhotoPath).catch(() => undefined);
@@ -176,7 +243,12 @@ export function createCompletionService({
       }
 
       emitRouteChanged(ticket.locality_id);
-      return { verified: true, ticketStatus: 'completed' };
+      return {
+        verified: true,
+        ticketStatus: 'completed',
+        reward,
+        ...(rewardSkippedReason ? { rewardSkippedReason } : {}),
+      };
     },
   };
 }

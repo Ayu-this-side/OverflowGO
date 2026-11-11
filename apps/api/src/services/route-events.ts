@@ -8,5 +8,10 @@ import { EventEmitter } from 'node:events';
 export const routeEvents = new EventEmitter();
 
 export function emitRouteChanged(localityId: string | null): void {
-  routeEvents.emit('changed', localityId);
+  routeEvents.emit('changed', { localityId, driverId: null });
+}
+
+/** Recompute just one driver's route (duty/van state changes). */
+export function emitDriverRouteChanged(driverId: string): void {
+  routeEvents.emit('changed', { localityId: null, driverId });
 }

@@ -6,6 +6,7 @@ import { currentDriverId, requireDriver } from '../middleware/driver-auth';
 import { uploadPhoto } from '../middleware/upload';
 import type { AiClient } from '../services/ai';
 import { createCompletionService } from '../services/completions';
+import type { DispatchService } from '../services/dispatch';
 import { computeDriverRoute } from '../services/driver-route';
 import { createDriverService } from '../services/drivers';
 
@@ -41,6 +42,10 @@ const CompleteBodySchema = z.object({
   lng: z.coerce.number().gte(-180).lte(180),
 });
 
+const RespondSchema = z.object({
+  response: z.enum(['accept', 'reject']),
+});
+
 function validationMessage(error: z.ZodError): string {
   return error.issues
     .map((issue) =>
@@ -52,13 +57,15 @@ function validationMessage(error: z.ZodError): string {
 export interface DriverRouterDependencies {
   config: AppConfig;
   ai: AiClient;
+  dispatch: DispatchService;
 }
 
 export function createDriverRouter({
   config,
   ai,
+  dispatch,
 }: DriverRouterDependencies): Router {
-  const drivers = createDriverService({ config });
+  const drivers = createDriverService({ config, dispatch });
   const completions = createCompletionService({ config, ai });
   const router = Router();
 
@@ -132,7 +139,62 @@ export function createDriverRouter({
 
   router.get('/driver/route', requireDriver, async (req, res, next) => {
     try {
-      res.json(await computeDriverRoute(currentDriverId(req)));
+      res.json(await computeDriverRoute(currentDriverId(req), config));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post(
+    '/driver/offers/:offerId/respond',
+    requireDriver,
+    async (req, res, next) => {
+      try {
+        const { offerId } = req.params;
+        if (!offerId || !UUID_PATTERN.test(offerId)) {
+          throw new ApiError(404, 'Offer not found', 'offer_not_found');
+        }
+        const parsed = RespondSchema.safeParse(req.body);
+        if (!parsed.success) {
+          throw new ApiError(400, validationMessage(parsed.error), 'validation_error');
+        }
+        const result = await dispatch.respond(
+          currentDriverId(req),
+          offerId,
+          parsed.data.response,
+        );
+        if (!result.assigned && result.reason !== 'rejected') {
+          res.status(409).json(result);
+          return;
+        }
+        res.json(result);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.post('/driver/van-full', requireDriver, async (req, res, next) => {
+    try {
+      const driver = await drivers.setVanFull(currentDriverId(req), true);
+      res.json({ driver });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/driver/van-emptied', requireDriver, async (req, res, next) => {
+    try {
+      const driver = await drivers.setVanFull(currentDriverId(req), false);
+      res.json({ driver });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get('/driver/wallet', requireDriver, async (req, res, next) => {
+    try {
+      res.json(await drivers.wallet(currentDriverId(req)));
     } catch (error) {
       next(error);
     }
