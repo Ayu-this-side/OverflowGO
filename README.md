@@ -110,9 +110,9 @@ The `/` portal is now the real citizen flow:
 4. The photo is compressed to 1280 px JPEG in the browser, then uploaded with a
    `deviceId` and a `clientReportId`.
 5. The API re-compresses, hashes the photo, calls the AI service and accepts
-   when an overflowing bin, garbage, or a garbage bin is detected. Otherwise it
-   rejects with a retake message. Reports within 5 m of an open ticket are
-   merged instead of creating a second ticket.
+   only when visible overflow or loose garbage is detected. A clean bin on its
+   own is rejected with a retake message. Reports within 5 m of an open ticket
+   are merged instead of creating a second ticket.
 6. If the network or AI service is unavailable, the report is saved in
    IndexedDB and retried automatically with the same idempotency key.
 

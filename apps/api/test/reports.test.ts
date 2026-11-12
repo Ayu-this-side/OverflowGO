@@ -13,6 +13,7 @@ import { loadConfig } from '../src/config';
 import { query } from '../src/db/pool';
 import { AiServiceUnavailableError } from '../src/errors';
 import {
+  REJECT_CLEAN_BIN,
   REJECT_NO_GARBAGE,
   REJECT_NOTHING_VISIBLE,
 } from '../src/services/reports';
@@ -223,22 +224,30 @@ describe('POST /api/reports', () => {
     });
   });
 
-  it('accepts a bin-only photo and records the garbage_bin trigger', async () => {
+  it('rejects a clean bin even when the bin itself is detected', async () => {
     await seedLocality();
     const app = appWith(fakeAi({ bin_conf: 0.9 }));
 
-    const response = await postReport(app, { photo: await makePhoto(5) });
+    const response = await postReport(app, { photo: await makePhoto(6) });
 
-    expect(response.status).toBe(201);
-    expect(response.body.status).toBe('accepted');
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      status: 'rejected',
+      reason: REJECT_CLEAN_BIN,
+    });
+
+    const tickets = await query('SELECT count(*)::int AS count FROM tickets');
+    expect(tickets.rows[0].count).toBe(0);
 
     const report = await query(
-      'SELECT result, ai_trigger FROM reports WHERE id = $1',
+      'SELECT result, reject_reason, ticket_id, photo_path FROM reports WHERE id = $1',
       [response.body.reportId],
     );
     expect(report.rows[0]).toMatchObject({
-      result: 'accepted',
-      ai_trigger: 'garbage_bin',
+      result: 'rejected',
+      reject_reason: REJECT_CLEAN_BIN,
+      ticket_id: null,
+      photo_path: null,
     });
   });
 

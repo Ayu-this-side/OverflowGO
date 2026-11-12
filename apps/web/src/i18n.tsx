@@ -62,6 +62,8 @@ const en = {
     "We couldn't find an overflowing bin or garbage in this photo. Please retake it.",
   reasonNothingVisible:
     "We couldn't see a bin or garbage in this photo. Please move closer and retake.",
+  reasonCleanBin:
+    "This bin doesn't look overflowing and no garbage is visible. If it is full, step closer and retake.",
   queuedTitle: "Saved. We'll send it when you're back online.",
   queuedBody: 'Keep this page installed. We retry automatically.',
   errorTitle: 'Report not sent',
@@ -138,6 +140,8 @@ const hi: Record<TranslationKey, string> = {
     'इस फोटो में भरा हुआ कूड़ेदान या कूड़ा नहीं मिला। कृपया दोबारा फोटो लें।',
   reasonNothingVisible:
     'इस फोटो में कूड़ेदान या कूड़ा नहीं दिखा। थोड़ा पास जाकर दोबारा फोटो लें।',
+  reasonCleanBin:
+    'यह कूड़ेदान भरा हुआ नहीं दिख रहा और आसपास कूड़ा भी नहीं है। अगर कूड़ेदान भरा है, तो थोड़ा पास जाकर दोबारा फोटो लें।',
   queuedTitle: 'सहेज लिया गया है। इंटरनेट आने पर भेज दिया जाएगा।',
   queuedBody: 'यह पेज इंस्टॉल रखें। हम अपने आप दोबारा कोशिश करेंगे।',
   errorTitle: 'रिपोर्ट नहीं भेजी जा सकी',

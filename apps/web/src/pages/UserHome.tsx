@@ -44,6 +44,8 @@ const REJECT_NO_GARBAGE =
   "We couldn't find an overflowing bin or garbage in this photo. Please retake it.";
 const REJECT_NOTHING_VISIBLE =
   "We couldn't see a bin or garbage in this photo. Please move closer and retake.";
+const REJECT_CLEAN_BIN =
+  "This bin doesn't look overflowing and no garbage is visible. If it is full, step closer and retake.";
 
 const STATUS_KEYS: Record<TicketStatus, TranslationKey> = {
   open: 'statusOpen',
@@ -143,7 +145,9 @@ function ResultPanel({
       ? t('reasonNoGarbage')
       : result.reason === REJECT_NOTHING_VISIBLE
         ? t('reasonNothingVisible')
-        : (result.reason ?? t('rejectedBody'));
+        : result.reason === REJECT_CLEAN_BIN
+          ? t('reasonCleanBin')
+          : (result.reason ?? t('rejectedBody'));
 
   if (result.kind === 'accepted' || result.kind === 'merged') {
     const merged = result.kind === 'merged';

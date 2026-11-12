@@ -19,6 +19,8 @@ export const REJECT_NO_GARBAGE =
   "We couldn't find an overflowing bin or garbage in this photo. Please retake it.";
 export const REJECT_NOTHING_VISIBLE =
   "We couldn't see a bin or garbage in this photo. Please move closer and retake.";
+export const REJECT_CLEAN_BIN =
+  "This bin doesn't look overflowing and no garbage is visible. If it is full, step closer and retake.";
 
 const MESSAGE_ACCEPTED = 'Report received. A driver will be assigned.';
 const MESSAGE_MERGED =
@@ -322,10 +324,16 @@ export function createReportService({
       const garbageHit = garbageConf >= config.aiGarbageThreshold;
       const binHit = binConf >= config.aiBinThreshold;
 
-      if (!overflowHit && !garbageHit && !binHit) {
+      // A bin being present is not enough: a clean, closed bin must be rejected.
+      // Only visible overflow or loose garbage is a valid report.
+      if (!overflowHit && !garbageHit) {
         const nothingVisible =
           overflowConf === 0 && garbageConf === 0 && binConf === 0;
-        const reason = nothingVisible ? REJECT_NOTHING_VISIBLE : REJECT_NO_GARBAGE;
+        const reason = nothingVisible
+          ? REJECT_NOTHING_VISIBLE
+          : binHit
+            ? REJECT_CLEAN_BIN
+            : REJECT_NO_GARBAGE;
 
         try {
           const inserted = await insertReportSafely({
@@ -359,9 +367,7 @@ export function createReportService({
           ? 'both'
           : overflowHit
             ? 'overflow'
-            : garbageHit
-              ? 'garbage'
-              : 'garbage_bin';
+            : 'garbage';
 
       const duplicate = await findDuplicatePhoto(
         prepared.hash,
