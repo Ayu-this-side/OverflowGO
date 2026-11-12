@@ -15,9 +15,63 @@ import {
 } from './storage';
 
 const REASON_NO_BIN =
-  "We couldn't see a bin in this photo. Step back so the bin is visible and retake.";
+  "We couldn't clearly see a bin in this photo. Step back so the cleaned bin is visible and retake.";
 const REASON_STILL_DIRTY =
   'Overflow or garbage is still visible. Please clean the spot and retake the photo.';
+const REASON_REPORT_PHOTO =
+  'This photo matches the citizen report photo. Take a new photo of the cleaned spot.';
+const REASON_REUSED_PHOTO =
+  'This photo was already used to complete another job. Take a new photo of this spot.';
+
+type ReusedPhotoSource = 'report' | 'completion';
+
+/**
+ * Spot a photo that is being reused instead of a fresh after photo:
+ * - the same image as the citizen's report for this ticket, or
+ * - an after photo this driver already used on another verified job.
+ * The comparison is a 64-bit difference hash, so a recompressed or resized copy
+ * still matches while a genuinely different photo does not.
+ */
+async function findReusedPhoto(
+  driverId: string,
+  ticketId: string,
+  photoHash: string,
+  maxDistance: number,
+  lookbackDays: number,
+): Promise<ReusedPhotoSource | null> {
+  const result = await query<{ source: ReusedPhotoSource }>(
+    `SELECT source
+       FROM (
+         SELECT 'report'::text AS source, r.created_at
+           FROM reports r
+          WHERE r.ticket_id = $1
+            AND r.result <> 'rejected'
+            AND r.photo_hash IS NOT NULL
+            AND length(r.photo_hash) = 16
+            AND length($3) = 16
+            AND bit_count(
+                  ('x' || r.photo_hash)::bit(64) # ('x' || $3)::bit(64)
+                ) <= $4
+         UNION ALL
+         SELECT 'completion'::text AS source, c.created_at
+           FROM completions c
+          WHERE c.driver_id = $2
+            AND c.ticket_id <> $1
+            AND c.verified = true
+            AND c.photo_hash IS NOT NULL
+            AND length(c.photo_hash) = 16
+            AND length($3) = 16
+            AND c.created_at > now() - ($5 * interval '1 day')
+            AND bit_count(
+                  ('x' || c.photo_hash)::bit(64) # ('x' || $3)::bit(64)
+                ) <= $4
+       ) AS matches
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [ticketId, driverId, photoHash, maxDistance, lookbackDays],
+  );
+  return result.rows[0]?.source ?? null;
+}
 
 interface TicketRow {
   id: string;
@@ -97,10 +151,24 @@ export function createCompletionService({
       const garbageConf = prediction.garbage_conf ?? 0;
       const binConf = prediction.bin_conf ?? 0;
 
-      const verified =
-        binConf > 0 &&
+      const binVisible = binConf >= config.aiVerifyMinBinConf;
+      const visuallyClean =
         overflowConf < config.aiVerifyMaxOverflowConf &&
         garbageConf < config.aiVerifyMaxGarbageConf;
+
+      // Only spend the hash lookup when the photo could otherwise be verified.
+      const reused =
+        binVisible && visuallyClean
+          ? await findReusedPhoto(
+              driverId,
+              ticketId,
+              prepared.hash,
+              config.afterPhotoReuseHashMaxDistance,
+              config.afterPhotoReuseLookbackDays,
+            )
+          : null;
+
+      const verified = binVisible && visuallyClean && reused === null;
 
       const previous = await query<{ after_photo_path: string | null }>(
         'SELECT after_photo_path FROM completions WHERE ticket_id = $1',
@@ -124,17 +192,18 @@ export function createCompletionService({
         const outcome = await withTransaction(async (client) => {
           await client.query(
             `INSERT INTO completions (
-               ticket_id, driver_id, after_photo_path, location,
+               ticket_id, driver_id, after_photo_path, photo_hash, location,
                ai_overflow_conf, ai_garbage_conf, ai_bin_conf, verified
              )
              VALUES (
-               $1, $2, $3,
+               $1, $2, $3, $10,
                ST_SetSRID(ST_MakePoint($4, $5), 4326)::geography,
                $6, $7, $8, $9
              )
              ON CONFLICT (ticket_id) DO UPDATE
                SET driver_id = EXCLUDED.driver_id,
                    after_photo_path = EXCLUDED.after_photo_path,
+                   photo_hash = EXCLUDED.photo_hash,
                    location = EXCLUDED.location,
                    ai_overflow_conf = EXCLUDED.ai_overflow_conf,
                    ai_garbage_conf = EXCLUDED.ai_garbage_conf,
@@ -151,6 +220,7 @@ export function createCompletionService({
               garbageConf,
               binConf,
               verified,
+              prepared.hash,
             ],
           );
 
@@ -235,9 +305,16 @@ export function createCompletionService({
       }
 
       if (!verified) {
+        const reason = !binVisible
+          ? REASON_NO_BIN
+          : !visuallyClean
+            ? REASON_STILL_DIRTY
+            : reused === 'report'
+              ? REASON_REPORT_PHOTO
+              : REASON_REUSED_PHOTO;
         return {
           verified: false,
-          reason: binConf <= 0 ? REASON_NO_BIN : REASON_STILL_DIRTY,
+          reason,
           ticketStatus: ticket.status,
         };
       }

@@ -50,7 +50,7 @@ Clean images should have low overflow/garbage confidence. We use the 95th percen
 - Chosen overflow verify max: **0.35**
 - Chosen garbage verify max: **0.35**
 
-The verify check also requires `bin_conf > 0`, so a photo of the sky or empty ground cannot pass as cleaned.
+The verify check also requires `bin_conf >= aiVerifyMinBinConf` (0.65), so a photo of the sky, empty ground, or a blurry scene cannot pass as cleaned. The completion service additionally rejects a reused image: the citizen report photo for that ticket, or an after photo the same driver already used on another verified job within the configured lookback.
 
 ## Performance
 

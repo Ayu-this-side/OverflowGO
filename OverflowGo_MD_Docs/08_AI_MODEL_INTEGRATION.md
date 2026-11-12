@@ -80,10 +80,13 @@ Both `overflow` and `garbage` count as a valid report. `garbage_bin` alone does 
 
 **After-photo check (driver completion):**
 - Verified only if **all** are true:
-  - `overflow_conf < aiVerifyMaxOverflowConf` (start 0.25)
-  - `garbage_conf < aiVerifyMaxGarbageConf` (start 0.25)
-  - a bin is visible (`bin_conf > 0`), so a photo of the sky or the ground cannot pass as "cleaned"
+  - `overflow_conf < aiVerifyMaxOverflowConf` (start 0.35)
+  - `garbage_conf < aiVerifyMaxGarbageConf` (start 0.35)
+  - a bin is clearly visible (`bin_conf >= aiVerifyMinBinConf`, start 0.65), so a photo of the sky, the ground, or a blurry scene cannot pass as "cleaned"
+  - the image is not reused: its 64-bit difference hash is farther than `afterPhotoReuseHashMaxDistance` (start 6) from the citizen report photo for this ticket and from any verified after photo this driver used in the last `afterPhotoReuseLookbackDays` (start 30)
+- Reusing the citizen photo or an earlier after photo is rejected without completing the ticket, so one clean-bin image cannot be recycled across jobs.
 - The verify side uses lower thresholds than the accept side on purpose. A half-cleaned spot should not pass.
+- Honest limit: the model verifies *condition*, not bin identity. A driver who stands at the correct location and photographs a different clean bin cannot be distinguished from one photographing the cleaned bin. The hash checks stop reuse of known images but cannot prove the bin is the same object.
 
 The thresholds are starting points. The first task below calibrates them.
 

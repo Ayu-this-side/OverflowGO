@@ -16,10 +16,12 @@ import {
   resetDatabase,
   seedDriver,
   seedLocality,
+  seedReport,
   seedRouteStop,
   seedTicket,
   setupTestDatabase,
 } from './db';
+import { preparePhoto } from '../src/services/storage';
 
 const config = loadConfig();
 const PASSWORD = 'driver-pass-123';
@@ -308,12 +310,85 @@ describe('complete job', () => {
     expect(ticket.rows[0].completed_at).not.toBeNull();
 
     const completion = await query(
-      'SELECT verified, after_photo_path FROM completions WHERE ticket_id = $1',
+      'SELECT verified, after_photo_path, photo_hash FROM completions WHERE ticket_id = $1',
       [ticketId],
     );
     expect(completion.rows[0].verified).toBe(true);
     expect(completion.rows[0].after_photo_path).toBeTruthy();
+    expect(completion.rows[0].photo_hash).toMatch(/^[0-9a-f]{16}$/);
     expect(readdirSync(join(photoDir, 'completions'))).toHaveLength(1);
+  });
+
+  it('rejects an after photo where the cleaned bin is not clearly visible', async () => {
+    const { ticketId, app, token } = await setupTicket();
+    void app;
+    const weakApp = appWith(
+      fakeAi({ bin_conf: config.aiVerifyMinBinConf - 0.1 }),
+    );
+
+    const response = await completeTicket(
+      weakApp,
+      token,
+      ticketId,
+      await makePhoto(24),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.verified).toBe(false);
+    expect(response.body.reason).toMatch(/clearly see a bin/i);
+
+    const ticket = await query('SELECT status FROM tickets WHERE id = $1', [
+      ticketId,
+    ]);
+    expect(ticket.rows[0].status).toBe('open');
+  });
+
+  it('rejects an after photo that reuses the citizen report photo', async () => {
+    const { ticketId, app, token } = await setupTicket();
+    const photo = await makePhoto(25);
+    const prepared = await preparePhoto(photo);
+    await seedReport({ ticketId, photoHash: prepared.hash });
+
+    const response = await completeTicket(app, token, ticketId, photo);
+
+    expect(response.status).toBe(200);
+    expect(response.body.verified).toBe(false);
+    expect(response.body.reason).toMatch(/matches the citizen report photo/i);
+
+    const ticket = await query('SELECT status FROM tickets WHERE id = $1', [
+      ticketId,
+    ]);
+    expect(ticket.rows[0].status).toBe('open');
+  });
+
+  it('rejects an after photo already used to complete another job', async () => {
+    const { localityId, ticketId, app, token } = await setupTicket();
+    const photo = await makePhoto(26);
+
+    const first = await completeTicket(app, token, ticketId, photo);
+    expect(first.body).toMatchObject({ verified: true });
+
+    const secondTicketId = await seedTicket({ localityId });
+    const second = await completeTicket(app, token, secondTicketId, photo);
+
+    expect(second.status).toBe(200);
+    expect(second.body.verified).toBe(false);
+    expect(second.body.reason).toMatch(/already used/i);
+
+    const secondTicket = await query(
+      'SELECT status FROM tickets WHERE id = $1',
+      [secondTicketId],
+    );
+    expect(secondTicket.rows[0].status).toBe('open');
+
+    // A genuinely new photo for the same ticket must still be accepted.
+    const fresh = await completeTicket(
+      app,
+      token,
+      secondTicketId,
+      await makePhoto(27),
+    );
+    expect(fresh.body).toMatchObject({ verified: true });
   });
 
   it('rejects a photo that still shows overflow or garbage', async () => {

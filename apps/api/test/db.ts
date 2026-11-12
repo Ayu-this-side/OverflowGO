@@ -209,6 +209,39 @@ export async function seedTicket({
   return result.rows[0]!.id;
 }
 
+export interface SeedReportInput {
+  ticketId: string;
+  photoHash: string;
+  lat?: number;
+  lng?: number;
+  result?: 'accepted' | 'merged';
+  deviceId?: string;
+}
+
+export async function seedReport({
+  ticketId,
+  photoHash,
+  lat = 18.5204,
+  lng = 73.8567,
+  result = 'accepted',
+  deviceId = 'citizen-device',
+}: SeedReportInput): Promise<string> {
+  const inserted = await query<{ id: string }>(
+    `INSERT INTO reports (
+       ticket_id, location, device_id, ai_overflow_conf, ai_garbage_conf,
+       ai_bin_conf, ai_trigger, result, photo_hash
+     )
+     VALUES (
+       $1,
+       ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
+       $4, 0.9, 0, 0.9, 'overflow', $5, $6
+     )
+     RETURNING id`,
+    [ticketId, lng, lat, deviceId, result, photoHash],
+  );
+  return inserted.rows[0]!.id;
+}
+
 export async function seedOffer({
   ticketId,
   driverId,

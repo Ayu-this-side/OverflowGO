@@ -37,8 +37,11 @@ export interface AppConfig {
   aiOverflowThreshold: number;
   aiGarbageThreshold: number;
   aiBinThreshold: number;
+  aiVerifyMinBinConf: number;
   aiVerifyMaxOverflowConf: number;
   aiVerifyMaxGarbageConf: number;
+  afterPhotoReuseHashMaxDistance: number;
+  afterPhotoReuseLookbackDays: number;
   rewardPerExtraJob: number;
   rewardDailyCapPerDriver: number;
   photoRetentionDaysAfterClose: number;

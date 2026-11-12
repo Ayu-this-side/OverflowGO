@@ -96,10 +96,11 @@ Every accepted or rejected submission, including merged ones.
 | ticket_id | uuid FK unique | |
 | driver_id | uuid FK | |
 | after_photo_path | text null | |
+| photo_hash | text null | 64-bit dHash; reused photos are rejected |
 | location | geography(Point) | |
 | ai_overflow_conf | numeric | must be below `aiVerifyMaxOverflowConf` to verify |
 | ai_garbage_conf | numeric | must be below `aiVerifyMaxGarbageConf` to verify |
-| ai_bin_conf | numeric | a bin must be visible (greater than 0) to verify |
+| ai_bin_conf | numeric | must reach `aiVerifyMinBinConf` to verify |
 | verified | boolean | |
 | created_at | timestamptz | |
 

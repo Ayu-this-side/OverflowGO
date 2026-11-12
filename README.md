@@ -147,9 +147,11 @@ driver PWA then:
    in one of the driver's localities, or when a ticket is released.
 5. Completes a job with a live after photo. The API accepts it only when the
    driver owns the ticket (or covers its locality), the photo is within
-   `afterPhotoMaxDistanceMeters` (50 m), the AI sees a bin, and overflow and
-   garbage confidence stay below the verify thresholds. A failed check leaves
-   the ticket open so the driver can retake the photo.
+   `afterPhotoMaxDistanceMeters` (50 m), the AI clearly sees a bin
+   (`bin_conf >= aiVerifyMinBinConf`), overflow and garbage confidence stay
+   below the verify thresholds, and the image is not a reused photo (the
+   citizen report image or an after photo already used on another job). A failed
+   check leaves the ticket open so the driver can retake the photo.
 6. Going offline releases assigned tickets back to `open` so another driver can
    pick them up.
 
