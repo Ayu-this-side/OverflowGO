@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import { captureFrame } from '../lib/image';
 
-export type CameraError = 'denied' | 'unsupported' | 'frame';
+export type CameraError = 'denied' | 'unsupported' | 'notfound' | 'frame';
 
 interface CameraCaptureProps {
   onCapture: (photo: Blob) => void;
@@ -54,8 +54,18 @@ export default function CameraCapture({
         if (!video) return;
         video.srcObject = stream;
         await video.play().catch(() => undefined);
-      } catch {
-        if (!cancelled) onError('denied');
+      } catch (cause) {
+        if (!cancelled) {
+          const name =
+            cause instanceof DOMException || cause instanceof Error
+              ? cause.name
+              : '';
+          onError(
+            name === 'NotFoundError' || name === 'DevicesNotFoundError'
+              ? 'notfound'
+              : 'denied',
+          );
+        }
       } finally {
         if (!cancelled) setStarting(false);
       }

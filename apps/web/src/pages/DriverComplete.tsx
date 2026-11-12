@@ -24,6 +24,7 @@ export default function DriverComplete() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<CameraError | null>(null);
+  const [cameraAttempt, setCameraAttempt] = useState(0);
   const [result, setResult] = useState<CompleteTicketResponse | null>(null);
 
   useEffect(() => {
@@ -74,6 +75,24 @@ export default function DriverComplete() {
     setCameraError(null);
     setError(null);
     setStep('preview');
+  }, []);
+
+  const handleCameraError = useCallback((reason: CameraError) => {
+    // Keep the camera step visible. Returning to the details step here made a
+    // denied or unsupported camera look like the button did nothing.
+    setCameraError(reason);
+  }, []);
+
+  const openCamera = useCallback(() => {
+    setError(null);
+    setCameraError(null);
+    setCameraAttempt((attempt) => attempt + 1);
+    setStep('camera');
+  }, []);
+
+  const retryCamera = useCallback(() => {
+    setCameraError(null);
+    setCameraAttempt((attempt) => attempt + 1);
   }, []);
 
   const handleSubmit = async () => {
@@ -188,7 +207,7 @@ export default function DriverComplete() {
               </p>
               <button
                 type="button"
-                onClick={() => setStep('camera')}
+                onClick={openCamera}
                 className="mt-5 w-full rounded-2xl bg-brand-700 px-5 py-4 text-lg font-semibold text-white"
               >
                 Take after photo
@@ -211,31 +230,53 @@ export default function DriverComplete() {
         </section>
       )}
 
-      {step === 'camera' && (
-        <>
-          {cameraError && (
+      {step === 'camera' &&
+        (cameraError ? (
+          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100">
+            <h2 className="text-lg font-bold text-gray-900">
+              Camera not available
+            </h2>
             <p
               role="alert"
-              className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
+              className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
             >
               {cameraError === 'denied'
-                ? 'Allow camera access in your browser settings, then try again.'
-                : "We couldn't open the camera. Please try again."}
+                ? 'Camera access was blocked. Allow camera access for this site in your browser settings, then press Try again.'
+                : cameraError === 'unsupported'
+                  ? "This browser can't access a camera on this address. Open the app at http://localhost:5173 or use HTTPS, then try again."
+                  : cameraError === 'notfound'
+                    ? 'No camera was found on this device. Connect or enable a webcam, then press Try again.'
+                    : "We couldn't save the photo. Hold the camera steady and try again."}
             </p>
-          )}
+            <button
+              type="button"
+              onClick={retryCamera}
+              className="mt-4 w-full rounded-2xl bg-brand-700 px-5 py-4 text-lg font-semibold text-white"
+            >
+              Try again
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCameraError(null);
+                setStep('details');
+              }}
+              className="mt-3 w-full rounded-2xl px-5 py-3 text-base font-semibold text-gray-600"
+            >
+              Back to job
+            </button>
+          </section>
+        ) : (
           <CameraCapture
+            key={cameraAttempt}
             title="Take the after photo"
             hint="Show the bin clearly after cleaning. Overflow or garbage must be gone."
             captureLabel="Take after photo"
             onCapture={handleCapture}
-            onError={(reason) => {
-              setCameraError(reason);
-              setStep('details');
-            }}
+            onError={handleCameraError}
             onCancel={() => setStep('details')}
           />
-        </>
-      )}
+        ))}
 
       {step === 'preview' && previewUrl && (
         <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-brand-100">
@@ -257,7 +298,7 @@ export default function DriverComplete() {
           </button>
           <button
             type="button"
-            onClick={() => setStep('camera')}
+            onClick={openCamera}
             disabled={submitting}
             className="mt-3 w-full rounded-2xl px-5 py-3 text-base font-semibold text-gray-600"
           >
